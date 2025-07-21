@@ -152,6 +152,32 @@ This project includes automated GitHub Pages deployment via GitHub Actions.
    - GitHub Actions will automatically build and deploy to GitHub Pages
    - Your app will be available at: `https://yourusername.github.io/learn-flow-maze/`
 
+#### Troubleshooting GitHub Pages 404 Errors:
+
+If you encounter a 404 error when accessing your GitHub Pages site, try these solutions:
+
+**Option 1: Use the spa-github-pages solution (Default)**
+The project includes a 404.html file and routing scripts to handle client-side routing automatically. This should work for most cases.
+
+**Option 2: Use HashRouter instead of BrowserRouter**
+If you still get 404 errors, you can switch to HashRouter by setting an environment variable:
+
+1. Add to your `.github/workflows/deploy.yml` in the build step:
+```yaml
+- name: Build
+  run: npm run build
+  env:
+    VITE_USE_HASH_ROUTER: 'true'
+    NODE_ENV: production
+```
+
+2. Or build locally with:
+```bash
+VITE_USE_HASH_ROUTER=true npm run build:gh-pages
+```
+
+This will change URLs from `yourusername.github.io/learn-flow-maze/` to `yourusername.github.io/learn-flow-maze/#/`
+
 #### Manual Deployment:
 
 If you prefer manual deployment:
