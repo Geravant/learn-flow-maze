@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Set base URL for GitHub Pages deployment
+  base: process.env.NODE_ENV === 'production' ? '/learn-flow-maze/' : '/',
   server: {
     host: "::",
     port: 8080,

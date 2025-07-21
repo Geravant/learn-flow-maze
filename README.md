@@ -1,5 +1,7 @@
 # Learn Flow Maze
 
+[![Deploy to GitHub Pages](https://github.com/USERNAME/learn-flow-maze/actions/workflows/deploy.yml/badge.svg)](https://github.com/USERNAME/learn-flow-maze/actions/workflows/deploy.yml)
+
 An intelligent, adaptive learning platform that creates personalized educational content using AI-powered content generation. Learn Flow Maze provides an interactive card-based learning experience with progressive content loading and comprehensive quiz systems.
 
 ## Features
@@ -119,9 +121,56 @@ src/
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
+- `npm run build:gh-pages` - Build for GitHub Pages deployment
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Run TypeScript compiler
+
+## Deployment
+
+### GitHub Pages
+
+This project includes automated GitHub Pages deployment via GitHub Actions.
+
+#### Setup Instructions:
+
+1. **Fork or clone this repository** to your GitHub account
+
+2. **Enable GitHub Pages** in your repository:
+   - Go to repository Settings → Pages
+   - Source: Deploy from a branch
+   - Branch: Select `gh-pages` (will be created automatically)
+
+3. **Configure API Key (Optional)**:
+   - Go to repository Settings → Secrets and variables → Actions
+   - Add a new repository secret: `VITE_OPENROUTER_API_KEY`
+   - Set the value to your OpenRouter API key
+   - Uncomment the environment variable line in `.github/workflows/deploy.yml`
+
+4. **Trigger deployment**:
+   - Push to the `main` branch or create a pull request
+   - GitHub Actions will automatically build and deploy to GitHub Pages
+   - Your app will be available at: `https://yourusername.github.io/learn-flow-maze/`
+
+#### Manual Deployment:
+
+If you prefer manual deployment:
+
+```bash
+# Build for GitHub Pages
+npm run build:gh-pages
+
+# The dist/ folder contains the built app ready for deployment
+```
+
+### Other Hosting Platforms
+
+The built application in the `dist/` folder can be deployed to any static hosting service:
+
+- **Netlify**: Drag and drop the `dist/` folder
+- **Vercel**: Connect your repository and set build command to `npm run build`
+- **Firebase Hosting**: Use `firebase deploy` after configuring
+- **Surge.sh**: Use `surge dist/` command
 
 ## Contributing
 
