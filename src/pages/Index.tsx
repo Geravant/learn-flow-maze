@@ -1,7 +1,7 @@
 import { LearnSession } from "@/components/LearnSession";
 
 const Index = () => {
-  return <LearnSession initialTopic="Quantum Physics" />;
+  return <LearnSession />;
 };
 
 export default Index;

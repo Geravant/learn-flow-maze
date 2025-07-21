@@ -4,6 +4,9 @@ import { LearningCard } from './LearningCard';
 import { QuizModal } from './QuizModal';
 import { AITutorModal } from './AITutorModal';
 import { openRouterService, LearningCard as ILearningCard, QuizQuestion } from '@/services/openRouterService';
+import { wikiCardService } from '@/services/wikiCardService';
+import { apiKeyManager } from '@/services/apiKeyManager';
+import { topicSuggestionService } from '@/services/topicSuggestionService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -32,7 +35,7 @@ interface LearnSessionProps {
   onComplete?: (stats: SessionStats) => void;
 }
 
-export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: LearnSessionProps) {
+export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const [currentCard, setCurrentCard] = useState<ILearningCard | null>(null);
   const [nextCards, setNextCards] = useState<ILearningCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,14 +53,29 @@ export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: L
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [apiKeySet, setApiKeySet] = useState(false);
+  const [useWikiEngine, setUseWikiEngine] = useState(true);
+  const [selectedTopic, setSelectedTopic] = useState(initialTopic || '');
+  const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
+  const [topicSet, setTopicSet] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   
   const { toast } = useToast();
 
   useEffect(() => {
-    if (apiKeySet && sessionActive && !currentCard) {
+    // Check if we have an API key from environment or user input
+    if (apiKeyManager.hasApiKey() && !apiKeySet) {
+      setApiKeySet(true);
+    }
+    
+    // Set topic if provided initially
+    if (initialTopic && !topicSet) {
+      setTopicSet(true);
+    }
+    
+    if (apiKeySet && sessionActive && !currentCard && topicSet) {
       generateFirstCard();
     }
-  }, [apiKeySet, sessionActive]);
+  }, [apiKeySet, sessionActive, currentCard, topicSet, initialTopic]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -70,17 +88,72 @@ export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: L
     return () => clearInterval(interval);
   }, [sessionActive, sessionStartTime]);
 
+  const loadTopicSuggestions = async () => {
+    setLoadingSuggestions(true);
+    try {
+      const suggestions = await topicSuggestionService.getRandomTopics(4);
+      setTopicSuggestions(suggestions);
+    } catch (error) {
+      console.error('Failed to load topic suggestions:', error);
+      // Fallback to popular topics
+      setTopicSuggestions(topicSuggestionService.getPopularTopics().slice(0, 4));
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleTopicSelect = (topic: string) => {
+    setSelectedTopic(topic);
+  };
+
+  const handleTopicSubmit = () => {
+    if (!selectedTopic.trim()) {
+      toast({
+        title: "Topic Required",
+        description: "Please enter a topic or select one from the suggestions.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!topicSuggestionService.validateTopic(selectedTopic)) {
+      toast({
+        title: "Invalid Topic",
+        description: "Topic should be between 2-50 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setTopicSet(true);
+    toast({
+      title: "Topic Selected!",
+      description: `Ready to explore: ${selectedTopic}`,
+    });
+  };
+
   const handleApiKeySubmit = () => {
+    // Check if we already have an API key from environment
+    if (apiKeyManager.hasApiKey() && !apiKey.trim()) {
+      setApiKeySet(true);
+      toast({
+        title: "API Key Ready!",
+        description: "Using API key from environment configuration.",
+      });
+      return;
+    }
+    
     if (!apiKey.trim()) {
       toast({
         title: "API Key Required",
-        description: "Please enter your OpenRouter API key to continue.",
+        description: "Please enter your OpenRouter API key.",
         variant: "destructive"
       });
       return;
     }
     
-    openRouterService.setApiKey(apiKey);
+    // Set the API key through the centralized manager
+    apiKeyManager.setApiKey(apiKey);
     setApiKeySet(true);
     toast({
       title: "Ready to Learn!",
@@ -91,14 +164,50 @@ export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: L
   const generateFirstCard = async () => {
     setLoading(true);
     try {
-      const card = await openRouterService.generateLearningCard(initialTopic, 3);
+      let card: ILearningCard;
+      
+      if (useWikiEngine) {
+        try {
+          // Try using the infinite-wiki engine first
+          card = await wikiCardService.generateWikiCard(selectedTopic, {
+            difficulty: 3
+          });
+          
+          toast({
+            title: "Wiki Engine Activated",
+            description: `Generated enhanced content for: ${card.topic}`,
+          });
+        } catch (wikiError) {
+          console.warn('Wiki engine failed, falling back to OpenRouter:', wikiError);
+          // Fallback to original OpenRouter service
+          card = await openRouterService.generateLearningCard(selectedTopic, 3);
+          
+          toast({
+            title: "Using Standard Mode",
+            description: `Generated content for: ${card.topic}`,
+          });
+        }
+      } else {
+        // Use original OpenRouter service
+        card = await openRouterService.generateLearningCard(selectedTopic, 3);
+      }
+      
       setCurrentCard(card);
       
-      // Preload next cards
-      const connections = await openRouterService.generateConnections(initialTopic);
-      const nextCardPromises = connections.slice(0, 3).map(topic => 
-        openRouterService.generateLearningCard(topic, 3)
-      );
+      // Preload next cards - mix both engines if available
+      const connections = await openRouterService.generateConnections(selectedTopic);
+      const nextCardPromises = connections.slice(0, 3).map(async (topic, index) => {
+        // Alternate between wiki engine and standard for variety
+        if (useWikiEngine && index % 2 === 0) {
+          try {
+            return await wikiCardService.generateWikiCard(topic, { difficulty: 3 });
+          } catch {
+            return await openRouterService.generateLearningCard(topic, 3);
+          }
+        } else {
+          return await openRouterService.generateLearningCard(topic, 3);
+        }
+      });
       const preloadedCards = await Promise.all(nextCardPromises);
       setNextCards(preloadedCards);
       
@@ -110,7 +219,7 @@ export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: L
       console.error('Failed to generate learning card:', error);
       toast({
         title: "Generation Failed",
-        description: "Failed to generate learning content. Please check your API key.",
+        description: "Failed to generate learning content. Please check your configuration.",
         variant: "destructive"
       });
     } finally {
@@ -268,7 +377,112 @@ export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: L
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Show topic selection if API key is set but topic is not set yet
+  if (apiKeySet && !topicSet) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 space-y-6">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+            <BookOpen className="w-8 h-8 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Choose Your Learning Topic</h1>
+          <p className="text-muted-foreground max-w-md">
+            What would you like to explore today? Enter your own topic or select from our suggestions.
+          </p>
+        </div>
+
+        <div className="w-full max-w-lg space-y-4">
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="Enter a topic (e.g., Quantum Physics, Machine Learning...)"
+              value={selectedTopic}
+              onChange={(e) => setSelectedTopic(e.target.value)}
+              className="w-full p-3 border border-border rounded-lg bg-background text-foreground"
+              onKeyDown={(e) => e.key === 'Enter' && handleTopicSubmit()}
+            />
+            <Button onClick={handleTopicSubmit} className="w-full">
+              Start Learning About This Topic
+            </Button>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or choose from suggestions</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {topicSuggestions.length === 0 && (
+              <div className="flex justify-center">
+                <Button 
+                  variant="outline" 
+                  onClick={loadTopicSuggestions}
+                  disabled={loadingSuggestions}
+                  className="text-sm"
+                >
+                  {loadingSuggestions ? (
+                    <>
+                      <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    'Get Topic Suggestions'
+                  )}
+                </Button>
+              </div>
+            )}
+            
+            {topicSuggestions.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {topicSuggestions.map((topic, index) => (
+                  <Button
+                    key={index}
+                    variant={selectedTopic === topic ? "default" : "outline"}
+                    onClick={() => handleTopicSelect(topic)}
+                    className="text-sm h-auto p-3 text-left justify-start"
+                  >
+                    {topic}
+                  </Button>
+                ))}
+              </div>
+            )}
+            
+            {topicSuggestions.length > 0 && (
+              <div className="flex justify-center">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={loadTopicSuggestions}
+                  disabled={loadingSuggestions}
+                  className="text-xs"
+                >
+                  {loadingSuggestions ? (
+                    <>
+                      <RefreshCcw className="w-3 h-3 mr-1 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCcw className="w-3 h-3 mr-1" />
+                      Get More Suggestions
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!apiKeySet) {
+    const hasEnvApiKey = apiKeyManager.hasApiKey();
+    
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 space-y-6">
         <div className="text-center space-y-4">
@@ -277,31 +491,52 @@ export function LearnSession({ initialTopic = "Quantum Physics", onComplete }: L
           </div>
           <h1 className="text-2xl font-bold text-foreground">Educational Maze</h1>
           <p className="text-muted-foreground max-w-md">
-            Enter your OpenRouter API key to start your personalized learning journey
+            {hasEnvApiKey 
+              ? "Ready to start your personalized learning journey!"
+              : "Enter your OpenRouter API key to start your personalized learning journey"
+            }
           </p>
         </div>
         
         <div className="w-full max-w-sm space-y-4">
-          <input
-            type="password"
-            placeholder="OpenRouter API Key"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            className="w-full p-3 border border-border rounded-lg bg-background text-foreground"
-            onKeyDown={(e) => e.key === 'Enter' && handleApiKeySubmit()}
-          />
+          <div className="flex items-center space-x-2 mb-4">
+            <input
+              type="checkbox"
+              id="useWikiEngine"
+              checked={useWikiEngine}
+              onChange={(e) => setUseWikiEngine(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="useWikiEngine" className="text-sm text-muted-foreground">
+              Use Infinite-Wiki Engine (Enhanced Content)
+            </label>
+          </div>
+          
+          {!hasEnvApiKey && (
+            <input
+              type="password"
+              placeholder="OpenRouter API Key"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="w-full p-3 border border-border rounded-lg bg-background text-foreground"
+              onKeyDown={(e) => e.key === 'Enter' && handleApiKeySubmit()}
+            />
+          )}
+          
           <Button onClick={handleApiKeySubmit} className="w-full">
             Start Learning
           </Button>
         </div>
         
-        <p className="text-xs text-muted-foreground text-center max-w-md">
-          Get your API key from{' '}
-          <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-            openrouter.ai
-          </a>
-          . Your key is stored locally and never shared.
-        </p>
+        {!hasEnvApiKey && (
+          <p className="text-xs text-muted-foreground text-center max-w-md">
+            Get your API key from{' '}
+            <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              openrouter.ai
+            </a>
+            . Your key is stored locally and never shared.
+          </p>
+        )}
       </div>
     );
   }

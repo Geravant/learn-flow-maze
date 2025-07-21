@@ -1,3 +1,5 @@
+import { apiKeyManager } from './apiKeyManager';
+
 interface LearningCard {
   id: string;
   topic: string;
@@ -23,27 +25,26 @@ interface QuizQuestion {
 }
 
 class OpenRouterService {
-  private apiKey: string | null = null;
   private baseUrl = 'https://openrouter.ai/api/v1';
 
   constructor() {
-    // For now, we'll use a temporary input method
-    // In production, this would come from environment variables
+    // Uses centralized API key manager
   }
 
   setApiKey(key: string) {
-    this.apiKey = key;
+    apiKeyManager.setApiKey(key);
   }
 
-  private async makeRequest(endpoint: string, body: any) {
-    if (!this.apiKey) {
+  private async makeRequest(endpoint: string, body: Record<string, any>) {
+    const apiKey = apiKeyManager.getApiKey();
+    if (!apiKey) {
       throw new Error('OpenRouter API key not set');
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': window.location.origin,
         'X-Title': 'Educational Maze'
@@ -59,14 +60,27 @@ class OpenRouterService {
   }
 
   async generateLearningCard(topic: string, difficulty: number = 3): Promise<LearningCard> {
+    // Import the infinite-wiki service for enhanced content generation
+    const { generateLearningCardContent } = await import('./infiniteWikiService');
+    
+    // Generate core content using infinite-wiki engine
+    let wikiContent;
+    try {
+      wikiContent = await generateLearningCardContent(topic);
+    } catch (error) {
+      console.warn('Failed to use infinite-wiki service, falling back to OpenRouter:', error);
+      wikiContent = null;
+    }
+
     const prompt = `Create an educational learning card for the topic "${topic}" at difficulty level ${difficulty}/5.
+${wikiContent ? `Use this definition as a base: "${wikiContent.definition}"` : ''}
 
 Follow the 7±2 rule (maximum 7 elements per section) and structure as JSON:
 
 {
-  "definition": "Clear, concise explanation in 2-3 sentences",
+  "definition": "${wikiContent?.definition || 'Clear, concise explanation in 2-3 sentences'}",
   "keyPoints": ["3-5 main takeaways that fit working memory limits"],
-  "visualAid": "Simple ASCII art representation or diagram using basic characters",
+  "visualAid": "${wikiContent?.visualAid || 'Simple ASCII art representation or diagram using basic characters'}",
   "examples": ["2-3 real-world applications or examples"],
   "connections": ["3-5 related topics for exploration"],
   "estimatedTime": "learning time in minutes (2-4 range)",
@@ -92,18 +106,28 @@ Make it engaging, bite-sized, and mobile-friendly. Focus on clarity over complex
     });
 
     try {
-      const content = response.choices[0].message.content;
+      let content = response.choices[0].message.content;
+      
+      // Clean up potential control characters and formatting issues
+      content = content.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+      
+      // Try to extract JSON if it's wrapped in code blocks
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?})\s*```/);
+      if (jsonMatch) {
+        content = jsonMatch[1];
+      }
+      
       const parsed = JSON.parse(content);
       
       return {
         id: crypto.randomUUID(),
         topic,
         content: {
-          definition: parsed.definition,
-          keyPoints: parsed.keyPoints.slice(0, 7), // Enforce 7±2 rule
-          visualAid: parsed.visualAid,
-          examples: parsed.examples.slice(0, 3),
-          connections: parsed.connections.slice(0, 5)
+          definition: wikiContent?.definition || parsed.definition,
+          keyPoints: parsed.keyPoints?.slice(0, 7) || [`Key aspects of ${topic}`], // Enforce 7±2 rule
+          visualAid: wikiContent?.visualAid || parsed.visualAid || `[${topic}]`,
+          examples: parsed.examples?.slice(0, 3) || [`Example application of ${topic}`],
+          connections: parsed.connections?.slice(0, 5) || [`Related to ${topic}`]
         },
         difficulty: Math.max(1, Math.min(5, difficulty)) as 1 | 2 | 3 | 4 | 5,
         estimatedTime: parsed.estimatedTime || 3,
@@ -112,7 +136,23 @@ Make it engaging, bite-sized, and mobile-friendly. Focus on clarity over complex
       };
     } catch (error) {
       console.error('Failed to parse learning card response:', error);
-      throw new Error('Failed to generate learning card');
+      
+      // Create a fallback card if parsing fails
+      return {
+        id: crypto.randomUUID(),
+        topic,
+        content: {
+          definition: wikiContent?.definition || `${topic} is an important concept that deserves careful study.`,
+          keyPoints: [`Understanding ${topic} fundamentals`, `Exploring ${topic} applications`, `Mastering ${topic} concepts`],
+          visualAid: wikiContent?.visualAid || `╔════════════╗\n║   ${topic.toUpperCase()}   ║\n╚════════════╝`,
+          examples: [`Real-world ${topic} example`, `Practical ${topic} application`],
+          connections: [`Advanced ${topic}`, `${topic} theory`, `${topic} practice`]
+        },
+        difficulty: Math.max(1, Math.min(5, difficulty)) as 1 | 2 | 3 | 4 | 5,
+        estimatedTime: 3,
+        prerequisites: difficulty > 3 ? [`Basic ${topic} knowledge`] : [],
+        masteryLevel: 0
+      };
     }
   }
 
@@ -149,7 +189,7 @@ Format: [{"question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": 0
       const content = response.choices[0].message.content;
       const questions = JSON.parse(content);
       
-      return questions.map((q: any, index: number) => ({
+      return questions.map((q: { question: string; options: string[]; correctAnswer: number; explanation: string }) => ({
         id: crypto.randomUUID(),
         question: q.question,
         options: q.options,

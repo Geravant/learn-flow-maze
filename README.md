@@ -59,6 +59,18 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Infinite-Wiki Engine (AI-powered content generation)
+- OpenRouter API integration
+
+## AI Configuration
+
+This project uses the Infinite-Wiki engine for enhanced learning card generation. To use the AI features:
+
+1. Copy `.env.example` to `.env`
+2. Add your OpenRouter API key:
+   - `VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here`
+
+The app will gracefully degrade if no API key is provided, using fallback content generation.
 
 ## How can I deploy this project?
 
