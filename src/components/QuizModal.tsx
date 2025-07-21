@@ -32,8 +32,46 @@ export function QuizModal({ questions, topic, onComplete, onClose }: QuizModalPr
   const [showResults, setShowResults] = useState(false);
   const [userAnswers, setUserAnswers] = useState<number[]>([]);
 
+  // Handle empty questions or invalid index
+  if (!questions || questions.length === 0) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Quiz Unavailable</DialogTitle>
+            <DialogDescription>
+              Sorry, quiz questions are still loading. Please try again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center pt-4">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   const currentQuestion = questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+
+  // Additional safety check for current question
+  if (!currentQuestion) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Loading Question...</DialogTitle>
+            <DialogDescription>
+              Please wait while the question loads.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center pt-4">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const handleAnswerSelect = (answerIndex: number) => {
     const newAnswers = [...userAnswers];
@@ -50,8 +88,13 @@ export function QuizModal({ questions, topic, onComplete, onClose }: QuizModalPr
   };
 
   const calculateResults = () => {
+    if (!questions || questions.length === 0) {
+      onComplete(0);
+      return;
+    }
+    
     const correctAnswers = userAnswers.filter((answer, index) => 
-      answer === questions[index].correctAnswer
+      questions[index] && answer === questions[index].correctAnswer
     ).length;
     
     setSelectedAnswers(userAnswers);
@@ -64,7 +107,7 @@ export function QuizModal({ questions, topic, onComplete, onClose }: QuizModalPr
   };
 
   const getAnswerColor = (questionIndex: number, answerIndex: number) => {
-    if (!showResults) return '';
+    if (!showResults || !questions || !questions[questionIndex]) return '';
     
     const question = questions[questionIndex];
     const userAnswer = selectedAnswers[questionIndex];
@@ -85,8 +128,26 @@ export function QuizModal({ questions, topic, onComplete, onClose }: QuizModalPr
   const canProceed = userAnswers[currentQuestionIndex] !== undefined;
 
   if (showResults) {
+    if (!questions || questions.length === 0) {
+      return (
+        <Dialog open={true} onOpenChange={onClose}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-center">Quiz Error</DialogTitle>
+              <DialogDescription className="text-center">
+                Unable to show results - no questions found.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center pt-4">
+              <Button onClick={onClose}>Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    
     const score = selectedAnswers.filter((answer, index) => 
-      answer === questions[index].correctAnswer
+      questions[index] && answer === questions[index].correctAnswer
     ).length;
     
     const percentage = Math.round((score / questions.length) * 100);

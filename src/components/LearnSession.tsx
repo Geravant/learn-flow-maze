@@ -40,7 +40,9 @@ interface LearnSessionProps {
 export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const [currentCard, setCurrentCard] = useState<ILearningCard | null>(null);
   const [progressiveCard, setProgressiveCard] = useState<ProgressiveCard | null>(null);
-  const [useProgressiveLoading, setUseProgressiveLoading] = useState(true);
+  // Detect mobile and disable progressive loading by default on mobile
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const [useProgressiveLoading, setUseProgressiveLoading] = useState(!isMobile);
   const [nextCards, setNextCards] = useState<ILearningCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
@@ -186,19 +188,32 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     try {
       if (useProgressiveLoading) {
         // Use progressive loading
-        const card = await progressiveCardService.generateProgressiveCard(
-          selectedTopic, 
-          3, 
-          handleSectionUpdate
-        );
-        
-        setProgressiveCard(card);
-        setCurrentCard(null); // Clear traditional card
-        
-        toast({
-          title: "Progressive Loading Started",
-          description: `Generating content for: ${selectedTopic}`,
-        });
+        try {
+          const card = await progressiveCardService.generateProgressiveCard(
+            selectedTopic, 
+            3, 
+            handleSectionUpdate
+          );
+          
+          setProgressiveCard(card);
+          setCurrentCard(null); // Clear traditional card
+          
+          toast({
+            title: "Progressive Loading Started",
+            description: `Generating content for: ${selectedTopic}`,
+          });
+        } catch (progressiveError) {
+          console.warn('Progressive loading failed, falling back to traditional:', progressiveError);
+          // Fallback to traditional loading
+          const fallbackCard = await openRouterService.generateLearningCard(selectedTopic, 3);
+          setCurrentCard(fallbackCard);
+          setProgressiveCard(null);
+          
+          toast({
+            title: "Using Traditional Loading",
+            description: `Generated content for: ${selectedTopic}`,
+          });
+        }
       } else {
         // Use traditional loading
         let card: ILearningCard;
@@ -252,7 +267,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       
       toast({
         title: "Learning Session Started",
-        description: `Exploring: ${card.topic}`,
+        description: `Exploring: ${selectedTopic}`,
       });
     } catch (error) {
       console.error('Failed to generate learning card:', error);
@@ -427,6 +442,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         description: "Couldn't create quiz questions. Try again.",
         variant: "destructive"
       });
+      // Don't show quiz if generation failed
+      setShowQuiz(false);
+      setQuizQuestions([]);
+      setProgressiveQuiz(null);
     } finally {
       setLoading(false);
     }
@@ -435,7 +454,19 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const handleQuizComplete = (score: number) => {
     setShowQuiz(false);
     
-    const accuracy = score / quizQuestions.length;
+    // Get the total number of questions from either traditional or progressive quiz
+    const totalQuestions = progressiveQuiz ? progressiveQuiz.questions.length : quizQuestions.length;
+    
+    if (totalQuestions === 0) {
+      toast({
+        title: "Quiz Error",
+        description: "No questions were available for scoring.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const accuracy = score / totalQuestions;
     const masteryIncrease = Math.floor(accuracy * 30);
     
     setSessionStats(prev => ({
@@ -446,7 +477,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     moveToNextCard(masteryIncrease);
     
     toast({
-      title: `Quiz Complete! ${score}/${quizQuestions.length}`,
+      title: `Quiz Complete! ${score}/${totalQuestions}`,
       description: `Your understanding improved by ${masteryIncrease}%`,
     });
   };
@@ -730,10 +761,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       </div>
 
       {/* Quiz Modal */}
-      {showQuiz && (
+      {showQuiz && ((quizQuestions.length > 0) || (progressiveQuiz && progressiveQuiz.questions.length > 0)) && (
         <QuizModal
-          questions={quizQuestions}
-          topic={currentCard?.topic || ''}
+          questions={progressiveQuiz ? progressiveQuiz.questions : quizQuestions}
+          topic={currentCard?.topic || progressiveQuiz?.topic || ''}
           onComplete={handleQuizComplete}
           onClose={() => setShowQuiz(false)}
         />
