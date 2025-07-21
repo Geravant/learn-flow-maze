@@ -291,12 +291,14 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   };
 
   const moveToNextCard = async (masteryIncrease: number = 0) => {
-    if (!currentCard) return;
+    // Check if we have either a traditional or progressive card
+    const activeCard = currentCard || progressiveCard;
+    if (!activeCard) return;
 
     // Update current card mastery
     const updatedCard = {
-      ...currentCard,
-      masteryLevel: Math.min(100, currentCard.masteryLevel + masteryIncrease)
+      ...activeCard,
+      masteryLevel: Math.min(100, activeCard.masteryLevel + masteryIncrease)
     };
 
     // Update session stats
@@ -308,7 +310,46 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     }));
 
     // Move to next card
-    if (nextCards.length > 0) {
+    if (progressiveCard) {
+      // For progressive cards, generate a new progressive card from connections
+      try {
+        const connections = await openRouterService.generateConnections(activeCard.topic);
+        if (connections.length > 0) {
+          const nextTopic = connections[Math.floor(Math.random() * connections.length)];
+          
+          const newProgressiveCard = await progressiveCardService.generateProgressiveCard(
+            nextTopic,
+            activeCard.difficulty,
+            handleSectionUpdate
+          );
+          
+          setProgressiveCard(newProgressiveCard);
+          setCurrentCard(null); // Keep traditional card cleared
+          
+          toast({
+            title: "Great progress!",
+            description: `Moving to: ${nextTopic}`,
+          });
+        } else {
+          // No connections available, end session
+          setSessionActive(false);
+          onComplete?.(sessionStats);
+          toast({
+            title: "Session Complete!",
+            description: `Great job! You completed ${sessionStats.cardsCompleted} cards.`,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to generate next progressive card:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load next card. Session ended.",
+          variant: "destructive"
+        });
+        setSessionActive(false);
+      }
+    } else if (nextCards.length > 0) {
+      // For traditional cards, use the preloaded queue
       const [next, ...remaining] = nextCards;
       setCurrentCard(next);
       setNextCards(remaining);
@@ -340,10 +381,14 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
 
   const handleUnderstand = () => {
     moveToNextCard(25);
-    toast({
-      title: "Great progress!",
-      description: "Moving to the next concept.",
-    });
+    // Toast is now handled within moveToNextCard for progressive cards
+    // Only show toast for traditional cards
+    if (!progressiveCard) {
+      toast({
+        title: "Great progress!",
+        description: "Moving to the next concept.",
+      });
+    }
   };
 
   const handleReview = () => {
