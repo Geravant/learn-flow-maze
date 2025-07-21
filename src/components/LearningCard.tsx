@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useSpring, animated } from 'react-spring';
 import { LearningCard as ILearningCard } from '@/services/openRouterService';
+import { ProgressiveCard, CardSection } from '@/services/progressiveCardService';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,8 @@ import {
   Zap,
   BookOpen,
   Target,
-  Brain
+  Brain,
+  Loader2
 } from 'lucide-react';
 
 interface SwipeActions {
@@ -27,7 +29,8 @@ interface SwipeActions {
 }
 
 interface LearningCardProps {
-  card: ILearningCard;
+  card?: ILearningCard;
+  progressiveCard?: ProgressiveCard;
   actions: SwipeActions;
   isActive?: boolean;
 }
@@ -35,12 +38,58 @@ interface LearningCardProps {
 const SWIPE_THRESHOLD = 100;
 const ROTATION_FACTOR = 0.1;
 
-export function LearningCard({ card, actions, isActive = true }: LearningCardProps) {
+const SectionLoader = ({ loading, error }: { loading: boolean; error?: string }) => {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-xs text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
+  return null;
+};
+
+export function LearningCard({ card, progressiveCard, actions, isActive = true }: LearningCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [showHints, setShowHints] = useState(false);
   
+  // Use progressive card if available, otherwise use traditional card
+  const activeCard = progressiveCard || card;
+  const isProgressive = !!progressiveCard;
+  
+  if (!activeCard) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-3 text-muted-foreground">Preparing your learning card...</span>
+      </div>
+    );
+  }
+  
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  
+  // Helper function to get section content for progressive cards
+  const getSection = (type: string) => {
+    if (!isProgressive || !progressiveCard) return null;
+    return progressiveCard.sections.find(s => s.type === type);
+  };
+  
+  // Helper function to get content safely
+  const getSectionContent = (type: string, fallback?: any) => {
+    if (isProgressive) {
+      const section = getSection(type);
+      return section?.content || fallback;
+    }
+    return (card as any)?.content?.[type] || fallback;
+  };
+  
+  const getSectionLoading = (type: string) => {
+    if (!isProgressive) return false;
+    const section = getSection(type);
+    return section?.loading || false;
+  };
   
   // Transform values for rotation and opacity
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
@@ -166,14 +215,14 @@ export function LearningCard({ card, actions, isActive = true }: LearningCardPro
           <div className="space-y-3">
             <div className="flex items-start justify-between">
               <h2 className="text-lg font-bold text-foreground leading-tight">
-                {card.topic}
+                {activeCard.topic}
               </h2>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-xs">
                   <Clock size={12} className="mr-1" />
-                  {formatTime(card.estimatedTime)}
+                  {formatTime(activeCard.estimatedTime)}
                 </Badge>
-                <div className={`w-3 h-3 rounded-full ${getDifficultyColor(card.difficulty)}`} />
+                <div className={`w-3 h-3 rounded-full ${getDifficultyColor(activeCard.difficulty)}`} />
               </div>
             </div>
             
@@ -181,9 +230,9 @@ export function LearningCard({ card, actions, isActive = true }: LearningCardPro
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Understanding</span>
-                <span>{card.masteryLevel}%</span>
+                <span>{activeCard.masteryLevel}%</span>
               </div>
-              <Progress value={card.masteryLevel} className="h-1.5" />
+              <Progress value={activeCard.masteryLevel} className="h-1.5" />
             </div>
           </div>
 
@@ -191,25 +240,33 @@ export function LearningCard({ card, actions, isActive = true }: LearningCardPro
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <BookOpen size={16} />
-              <span>Definition</span>
+              <span>Description</span>
             </div>
-            <p className="text-sm leading-relaxed text-foreground">
-              {card.content.definition}
-            </p>
+            {getSectionLoading('definition') ? (
+              <SectionLoader loading={true} />
+            ) : (
+              <p className="text-sm leading-relaxed text-foreground">
+                {getSectionContent('definition', 'Loading description...')}
+              </p>
+            )}
           </div>
 
           {/* Visual Aid */}
-          {card.content.visualAid && (
+          {(getSectionContent('visualAid') || getSectionLoading('visualAid')) && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Target size={16} />
                 <span>Visual</span>
               </div>
-              <div className="bg-muted/50 p-3 rounded-md">
-                <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
-                  {card.content.visualAid}
-                </pre>
-              </div>
+              {getSectionLoading('visualAid') ? (
+                <SectionLoader loading={true} />
+              ) : (
+                <div className="bg-muted/50 p-3 rounded-md">
+                  <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
+                    {getSectionContent('visualAid')}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
 
@@ -217,32 +274,40 @@ export function LearningCard({ card, actions, isActive = true }: LearningCardPro
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Brain size={16} />
-              <span>Key Points</span>
+              <span>Learning Objectives</span>
             </div>
-            <ul className="space-y-1">
-              {card.content.keyPoints.map((point, index) => (
-                <li key={index} className="text-sm text-foreground flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
+            {getSectionLoading('keyPoints') ? (
+              <SectionLoader loading={true} />
+            ) : (
+              <ul className="space-y-1">
+                {(getSectionContent('keyPoints', []) as string[]).map((point: string, index: number) => (
+                  <li key={index} className="text-sm text-foreground flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Examples */}
-          {card.content.examples.length > 0 && (
+          {(getSectionContent('examples', []).length > 0 || getSectionLoading('examples')) && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Zap size={16} />
                 <span>Examples</span>
               </div>
-              <div className="grid gap-2">
-                {card.content.examples.map((example, index) => (
-                  <div key={index} className="bg-accent/50 p-2 rounded text-xs text-accent-foreground">
-                    {example}
-                  </div>
-                ))}
-              </div>
+              {getSectionLoading('examples') ? (
+                <SectionLoader loading={true} />
+              ) : (
+                <div className="grid gap-2">
+                  {(getSectionContent('examples', []) as string[]).map((example: string, index: number) => (
+                    <div key={index} className="bg-accent/50 p-2 rounded text-xs text-accent-foreground">
+                      {example}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

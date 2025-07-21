@@ -7,6 +7,8 @@ import { openRouterService, LearningCard as ILearningCard, QuizQuestion } from '
 import { wikiCardService } from '@/services/wikiCardService';
 import { apiKeyManager } from '@/services/apiKeyManager';
 import { topicSuggestionService } from '@/services/topicSuggestionService';
+import { progressiveCardService, ProgressiveCard, CardSection } from '@/services/progressiveCardService';
+import { progressiveQuizService, ProgressiveQuiz, QuizQuestion as ProgressiveQuizQuestion } from '@/services/progressiveQuizService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -37,12 +39,15 @@ interface LearnSessionProps {
 
 export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const [currentCard, setCurrentCard] = useState<ILearningCard | null>(null);
+  const [progressiveCard, setProgressiveCard] = useState<ProgressiveCard | null>(null);
+  const [useProgressiveLoading, setUseProgressiveLoading] = useState(true);
   const [nextCards, setNextCards] = useState<ILearningCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [showAITutor, setShowAITutor] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [progressiveQuiz, setProgressiveQuiz] = useState<ProgressiveQuiz | null>(null);
   const [sessionStats, setSessionStats] = useState<SessionStats>({
     cardsCompleted: 0,
     conceptsMastered: 0,
@@ -161,38 +166,72 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     });
   };
 
+  const handleSectionUpdate = (section: CardSection) => {
+    setProgressiveCard(prev => {
+      if (!prev) return prev;
+      
+      const updatedSections = prev.sections.map(s => 
+        s.id === section.id ? section : s
+      );
+      
+      return {
+        ...prev,
+        sections: updatedSections
+      };
+    });
+  };
+
   const generateFirstCard = async () => {
     setLoading(true);
     try {
-      let card: ILearningCard;
-      
-      if (useWikiEngine) {
-        try {
-          // Try using the infinite-wiki engine first
-          card = await wikiCardService.generateWikiCard(selectedTopic, {
-            difficulty: 3
-          });
-          
-          toast({
-            title: "Wiki Engine Activated",
-            description: `Generated enhanced content for: ${card.topic}`,
-          });
-        } catch (wikiError) {
-          console.warn('Wiki engine failed, falling back to OpenRouter:', wikiError);
-          // Fallback to original OpenRouter service
-          card = await openRouterService.generateLearningCard(selectedTopic, 3);
-          
-          toast({
-            title: "Using Standard Mode",
-            description: `Generated content for: ${card.topic}`,
-          });
-        }
+      if (useProgressiveLoading) {
+        // Use progressive loading
+        const card = await progressiveCardService.generateProgressiveCard(
+          selectedTopic, 
+          3, 
+          handleSectionUpdate
+        );
+        
+        setProgressiveCard(card);
+        setCurrentCard(null); // Clear traditional card
+        
+        toast({
+          title: "Progressive Loading Started",
+          description: `Generating content for: ${selectedTopic}`,
+        });
       } else {
-        // Use original OpenRouter service
-        card = await openRouterService.generateLearningCard(selectedTopic, 3);
+        // Use traditional loading
+        let card: ILearningCard;
+        
+        if (useWikiEngine) {
+          try {
+            // Try using the infinite-wiki engine first
+            card = await wikiCardService.generateWikiCard(selectedTopic, {
+              difficulty: 3
+            });
+            
+            toast({
+              title: "Wiki Engine Activated",
+              description: `Generated enhanced content for: ${card.topic}`,
+            });
+          } catch (wikiError) {
+            console.warn('Wiki engine failed, falling back to OpenRouter:', wikiError);
+            // Fallback to original OpenRouter service
+            card = await openRouterService.generateLearningCard(selectedTopic, 3);
+            
+            toast({
+              title: "Using Standard Mode",
+              description: `Generated content for: ${card.topic}`,
+            });
+          }
+        } else {
+          // Use original OpenRouter service
+          card = await openRouterService.generateLearningCard(selectedTopic, 3);
+        }
+        
+        setCurrentCard(card);
+        setProgressiveCard(null); // Clear progressive card
       }
-      
-      setCurrentCard(card);
       
       // Preload next cards - mix both engines if available
       const connections = await openRouterService.generateConnections(selectedTopic);
@@ -329,16 +368,57 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     }
   };
 
+  const handleProgressiveQuizUpdate = (question: ProgressiveQuizQuestion) => {
+    setProgressiveQuiz(prev => {
+      if (!prev) return prev;
+      
+      const updatedQuestions = prev.questions.map(q => 
+        q.id === question.id ? question : q
+      );
+      
+      return {
+        ...prev,
+        questions: updatedQuestions,
+        loading: updatedQuestions.some(q => q.loading)
+      };
+    });
+  };
+
   const handleQuickTest = async () => {
-    if (!currentCard) return;
+    const activeCard = progressiveCard || currentCard;
+    if (!activeCard) return;
     
     try {
       setLoading(true);
-      const questions = await openRouterService.generateQuiz(
-        currentCard.topic, 
-        JSON.stringify(currentCard.content)
-      );
-      setQuizQuestions(questions);
+      
+      if (useProgressiveLoading) {
+        // Generate progressive quiz
+        const cardContent = progressiveCard ? 
+          JSON.stringify({
+            definition: progressiveCard.sections.find(s => s.type === 'definition')?.content,
+            keyPoints: progressiveCard.sections.find(s => s.type === 'keyPoints')?.content,
+            examples: progressiveCard.sections.find(s => s.type === 'examples')?.content
+          }) : 
+          JSON.stringify((currentCard as ILearningCard).content);
+          
+        const quiz = await progressiveQuizService.generateProgressiveQuiz(
+          activeCard.topic,
+          cardContent,
+          handleProgressiveQuizUpdate
+        );
+        
+        setProgressiveQuiz(quiz);
+        setQuizQuestions([]); // Clear traditional questions
+      } else {
+        // Traditional quiz generation
+        const questions = await openRouterService.generateQuiz(
+          activeCard.topic, 
+          JSON.stringify((activeCard as ILearningCard).content)
+        );
+        setQuizQuestions(questions);
+        setProgressiveQuiz(null); // Clear progressive quiz
+      }
+      
       setShowQuiz(true);
     } catch (error) {
       console.error('Failed to generate quiz:', error);
@@ -393,6 +473,19 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
 
         <div className="w-full max-w-lg space-y-4">
           <div className="space-y-2">
+            <div className="flex items-center space-x-2 mb-3">
+              <input
+                type="checkbox"
+                id="useProgressiveLoading"
+                checked={useProgressiveLoading}
+                onChange={(e) => setUseProgressiveLoading(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="useProgressiveLoading" className="text-sm text-muted-foreground">
+                Progressive Loading (show content as it generates)
+              </label>
+            </div>
+            
             <input
               type="text"
               placeholder="Enter a topic (e.g., Quantum Physics, Machine Learning...)"
@@ -585,10 +678,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
             <RefreshCcw className="w-8 h-8 animate-spin text-primary" />
             <p className="text-muted-foreground">Generating your first learning card...</p>
           </div>
-        ) : currentCard ? (
+        ) : (currentCard || progressiveCard) ? (
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentCard.id}
+              key={(currentCard?.id || progressiveCard?.id) + (useProgressiveLoading ? '-progressive' : '-traditional')}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -596,6 +689,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
             >
               <LearningCard
                 card={currentCard}
+                progressiveCard={progressiveCard}
                 actions={{
                   onUnderstand: handleUnderstand,
                   onReview: handleReview,

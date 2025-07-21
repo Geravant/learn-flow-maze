@@ -78,16 +78,19 @@ ${wikiContent ? `Use this definition as a base: "${wikiContent.definition}"` : '
 Follow the 7±2 rule (maximum 7 elements per section) and structure as JSON:
 
 {
-  "definition": "${wikiContent?.definition || 'Clear, concise explanation in 2-3 sentences'}",
-  "keyPoints": ["3-5 main takeaways that fit working memory limits"],
+  "definition": "${wikiContent?.definition || 'Clear, informative description explaining what this topic is and why it matters (2-3 sentences)'}",
+  "keyPoints": ["3-5 specific learning objectives - what the student will understand or be able to do after studying this topic"],
   "visualAid": "${wikiContent?.visualAid || 'Simple ASCII art representation or diagram using basic characters'}",
-  "examples": ["2-3 real-world applications or examples"],
-  "connections": ["3-5 related topics for exploration"],
+  "examples": ["2-3 real-world applications, use cases, or concrete examples"],
+  "connections": ["3-5 related topics for further exploration"],
   "estimatedTime": "learning time in minutes (2-4 range)",
   "prerequisites": ["1-3 concepts needed to understand this topic"]
 }
 
-Make it engaging, bite-sized, and mobile-friendly. Focus on clarity over complexity.`;
+IMPORTANT: 
+- Definition should be descriptive and contextual
+- Key Points should be actionable learning objectives (use "Understand...", "Learn how...", "Identify...", etc.)
+- Make it engaging, bite-sized, and mobile-friendly.`;
 
     const response = await this.makeRequest('/chat/completions', {
       model: 'anthropic/claude-3.5-sonnet',
