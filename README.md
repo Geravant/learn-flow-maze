@@ -1,85 +1,143 @@
-# Welcome to your Lovable project
+# Learn Flow Maze
 
-## Project info
+An intelligent, adaptive learning platform that creates personalized educational content using AI-powered content generation. Learn Flow Maze provides an interactive card-based learning experience with progressive content loading and comprehensive quiz systems.
 
-**URL**: https://lovable.dev/projects/97ea4a6d-7c7a-4fa0-a5c5-c9a27bf766a7
+## Features
 
-## How can I edit this code?
+- **AI-Powered Content Generation**: Leverages the Infinite-Wiki engine for enhanced learning card creation
+- **Progressive Loading**: Content loads section by section for optimal performance on all devices
+- **Interactive Learning Cards**: Swipe-based navigation with intuitive gestures
+- **Adaptive Quizzes**: Both traditional and progressive quiz generation with multiple question types
+- **Mobile-First Design**: Optimized for both desktop and mobile learning experiences
+- **Personalized Topics**: Choose your own learning topics or get AI-generated suggestions
+- **Session Tracking**: Comprehensive progress tracking and mastery level monitoring
 
-There are several ways of editing your application.
+## Technology Stack
 
-**Use Lovable**
+This project is built with modern web technologies:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/97ea4a6d-7c7a-4fa0-a5c5-c9a27bf766a7) and start prompting.
+- **Frontend**: React 18 with TypeScript
+- **Build Tool**: Vite for fast development and optimized builds
+- **UI Framework**: shadcn/ui components with Tailwind CSS
+- **Animations**: Framer Motion for smooth interactions
+- **AI Integration**: OpenRouter API for LLM services
+- **Content Engine**: Infinite-Wiki engine for enhanced content generation
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js (v16 or higher)
+- npm or yarn package manager
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Installation
 
-Follow these steps:
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd learn-flow-maze
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+2. Install dependencies:
+```bash
+npm install
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+3. Set up environment variables:
+```bash
+cp .env.example .env
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+4. Configure your OpenRouter API key in `.env`:
+```env
+VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+5. Start the development server:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at `http://localhost:8080` (or the next available port).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Configuration
 
-**Use GitHub Codespaces**
+### AI Services
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+The app uses OpenRouter API to access various language models. To get an API key:
 
-## What technologies are used for this project?
+1. Visit [OpenRouter](https://openrouter.ai)
+2. Sign up for an account
+3. Generate an API key
+4. Add it to your `.env` file
 
-This project is built with:
+The application will gracefully degrade if no API key is provided, using fallback content generation.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Infinite-Wiki Engine (AI-powered content generation)
-- OpenRouter API integration
+### Progressive Loading
 
-## AI Configuration
+Progressive loading can be toggled in the UI and is automatically disabled on mobile devices for optimal performance. You can customize this behavior in the `LearnSession.tsx` component.
 
-This project uses the Infinite-Wiki engine for enhanced learning card generation. To use the AI features:
+## Usage
 
-1. Copy `.env.example` to `.env`
-2. Add your OpenRouter API key:
-   - `VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here`
+### Basic Learning Flow
 
-The app will gracefully degrade if no API key is provided, using fallback content generation.
+1. **Start Session**: Enter an OpenRouter API key (or use environment configuration)
+2. **Choose Topic**: Select a topic or use AI-generated suggestions
+3. **Learn**: Interact with cards using:
+   - **Swipe Right**: "Got it!" - move to next concept
+   - **Swipe Left**: "Review" - mark for later review
+   - **Swipe Up**: "Help" - get AI tutor assistance
+   - **Swipe Down**: "Explore" - discover related topics
+   - **Tap**: Take a quick quiz
 
-## How can I deploy this project?
+### Progressive vs Traditional Loading
 
-Simply open [Lovable](https://lovable.dev/projects/97ea4a6d-7c7a-4fa0-a5c5-c9a27bf766a7) and click on Share -> Publish.
+- **Progressive Loading**: Content loads section by section as it's generated
+- **Traditional Loading**: Complete cards are generated before display
+- Mobile devices default to traditional loading for better performance
 
-## Can I connect a custom domain to my Lovable project?
+## Development
 
-Yes, you can!
+### Project Structure
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```
+src/
+├── components/          # React components
+│   ├── ui/             # Reusable UI components (shadcn/ui)
+│   ├── LearningCard.tsx # Main learning card component
+│   ├── LearnSession.tsx # Main session management
+│   └── QuizModal.tsx   # Quiz interface
+├── services/           # API and business logic
+│   ├── apiKeyManager.ts      # Centralized API key management
+│   ├── openRouterService.ts  # OpenRouter API integration
+│   ├── progressiveCardService.ts  # Progressive loading logic
+│   └── infiniteWikiService.ts    # Infinite-wiki engine integration
+└── hooks/              # Custom React hooks
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+- `npm run type-check` - Run TypeScript compiler
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with React and the modern web development ecosystem
+- UI components powered by shadcn/ui
+- AI capabilities provided by OpenRouter API
+- Enhanced content generation via Infinite-Wiki engine
