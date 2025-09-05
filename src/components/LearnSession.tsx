@@ -522,17 +522,16 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
 
   const handleSelectCachedCard = async (cachedCard: CachedCard) => {
     try {
-      if (!cachedCard.isFullyLoaded) {
-        toast({
-          title: "Card Still Loading",
-          description: `${cachedCard.topic} is still being prepared (${cachedCard.loadingProgress}%)`,
-          variant: "default"
-        });
-        return;
+      // Switch to the cached card regardless of loading state
+      console.log(`🚀 Switching to cached card: ${cachedCard.topic} (${cachedCard.loadingProgress}% loaded)`);
+      
+      // Switch to the cached card (even if still loading)
+      if (cachedCard.card && Object.keys(cachedCard.card).length > 0) {
+        setCurrentCard(cachedCard.card);
+      } else {
+        // If card data isn't ready yet, clear current card to show loading state
+        setCurrentCard(null);
       }
-
-      // Switch to the cached card
-      setCurrentCard(cachedCard.card);
       
       // Set progressive card if available
       if (cachedCard.progressiveCard) {
@@ -547,10 +546,18 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       // Close the navigation panel
       setShowNavigationPanel(false);
       
-      toast({
-        title: "Instant Load Complete!",
-        description: `Now exploring: ${cachedCard.topic}${cachedCard.generatedImage ? ' (with AI image)' : ''}`,
-      });
+      // Show appropriate toast based on loading state
+      if (cachedCard.isFullyLoaded) {
+        toast({
+          title: "Instant Load Complete!",
+          description: `Now exploring: ${cachedCard.topic}${cachedCard.generatedImage ? ' (with AI image)' : ''}`,
+        });
+      } else {
+        toast({
+          title: "Loading in Progress...",
+          description: `Switched to: ${cachedCard.topic} (${cachedCard.loadingProgress}% complete)`,
+        });
+      }
     } catch (error) {
       console.error('Failed to load cached card:', error);
       toast({
@@ -562,27 +569,25 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   };
 
   const handleNavigateToCachedCard = async () => {
-    const readyCards = cardCacheService.getReadyCards();
+    const allCachedCards = cardCacheService.getAllCachedCards();
     
-    if (readyCards.length === 0) {
+    if (allCachedCards.length === 0) {
       console.log('❌ No cached cards available for navigation');
       // Fallback to understand action
       handleUnderstand();
       return;
     }
     
-    // Get the top (most recently accessed) ready card
-    const topCachedCard = readyCards[0];
+    // Prioritize fully loaded cards, but allow partially loaded ones
+    const readyCards = cardCacheService.getReadyCards();
+    const topCachedCard = readyCards.length > 0 
+      ? readyCards[0] // Use fully loaded card if available
+      : allCachedCards[0]; // Otherwise use the most recent cached card (even if loading)
     
-    console.log('🚀 Navigating to top cached card:', topCachedCard.topic);
+    console.log('🚀 Navigating to cached card:', topCachedCard.topic, `(${topCachedCard.loadingProgress}% loaded)`);
     
-    // Switch to the top cached card
+    // Switch to the cached card
     await handleSelectCachedCard(topCachedCard);
-    
-    toast({
-      title: "Switched to Cached Card!",
-      description: `Now exploring: ${topCachedCard.topic}`,
-    });
   };
 
 

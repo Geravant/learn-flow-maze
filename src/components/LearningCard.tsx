@@ -165,10 +165,10 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
     if (Math.abs(offset.x) > Math.abs(offset.y)) {
       // Horizontal swipe
       if (offset.x > SWIPE_THRESHOLD) {
-        // Right swipe - check for cached cards first
-        const readyCards = cardCacheService.getReadyCards();
-        if (readyCards.length > 0) {
-          console.log('➡️ Right swipe: Navigating to top cached card');
+        // Right swipe - check for any cached cards first (including loading ones)
+        const allCachedCards = cardCacheService.getAllCachedCards();
+        if (allCachedCards.length > 0) {
+          console.log('➡️ Right swipe: Navigating to cached card');
           actions.onNavigateToCachedCard();
         } else {
           console.log('➡️ Right swipe: No cached cards, using understand action');
@@ -432,7 +432,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
             <span>Review</span>
           </div>
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary text-sm font-medium flex items-center gap-1">
-            {cardCacheService.getReadyCards().length > 0 ? (
+            {cardCacheService.getAllCachedCards().length > 0 ? (
               <>
                 <ArrowUp size={16} style={{ transform: 'rotate(90deg)' }} />
                 <span>Next Card</span>
