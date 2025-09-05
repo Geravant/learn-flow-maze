@@ -4,6 +4,7 @@ import { useSpring, animated } from 'react-spring';
 import { LearningCard as ILearningCard } from '@/services/openRouterService';
 import { ProgressiveCard, CardSection } from '@/services/progressiveCardService';
 import { imageGenerationService } from '@/services/imageGenerationService';
+import { cardLoadingService, CardContentInfo } from '@/services/cardLoadingService';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,7 @@ interface LearningCardProps {
   progressiveCard?: ProgressiveCard;
   actions: SwipeActions;
   isActive?: boolean;
+  cachedImage?: string; // Pre-generated image from cache
 }
 
 const SWIPE_THRESHOLD = 100;
@@ -53,7 +55,7 @@ const SectionLoader = ({ loading, error }: { loading: boolean; error?: string })
   return null;
 };
 
-export function LearningCard({ card, progressiveCard, actions, isActive = true }: LearningCardProps) {
+export function LearningCard({ card, progressiveCard, actions, isActive = true, cachedImage }: LearningCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [showRadialNav, setShowRadialNav] = useState(false);
@@ -67,6 +69,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageGenerationError, setImageGenerationError] = useState<string | null>(null);
   const [showGeneratedImage, setShowGeneratedImage] = useState(false);
+  const [generationAttempted, setGenerationAttempted] = useState<string | null>(null); // Track which card had generation attempted
   
   // Use progressive card if available, otherwise use traditional card
   const activeCard = progressiveCard || card;
@@ -98,6 +101,24 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
     }
     return (card as any)?.content?.[type] || fallback;
   };
+
+  // Get current content info for the loading service
+  const getCurrentContentInfo = useCallback((): CardContentInfo => {
+    const extracted = cardLoadingService.extractContent(activeCard, isProgressive);
+    return {
+      activeCard,
+      visualAidContent: extracted.visualAidContent,
+      definitionContent: extracted.definitionContent,
+      hasGeneratedImage: !!generatedImage,
+      isGeneratingImage
+    };
+  }, [activeCard, isProgressive, generatedImage, isGeneratingImage]);
+
+  // Create a unique identifier for the current card
+  const getCardId = useCallback(() => {
+    if (!activeCard) return null;
+    return `${activeCard.topic}-${isProgressive ? 'progressive' : 'traditional'}`;
+  }, [activeCard, isProgressive]);
   
   const getSectionLoading = (type: string) => {
     if (!isProgressive) return false;
@@ -163,67 +184,100 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
     }
   };
 
-  // Auto-generate image when card loads
-  const generateImageInBackground = useCallback(async () => {
-    console.log('Auto-generation check:', {
-      apiKeyAvailable: imageGenerationService.isImageGenerationAvailable(),
-      hasActiveCard: !!activeCard,
-      hasGeneratedImage: !!generatedImage,
-      isGenerating: isGeneratingImage
-    });
-
-    if (!imageGenerationService.isImageGenerationAvailable() || !activeCard) {
-      console.log('Skipping auto-generation: API key not available or no active card');
-      return;
-    }
-
-    // Don't generate if we already have an image or are currently generating
-    if (generatedImage || isGeneratingImage) {
-      console.log('Skipping auto-generation: already have image or currently generating');
-      return;
-    }
-
-    const visualAidContent = getSectionContent('visualAid', '');
-    const definitionContent = getSectionContent('definition', '');
+  // Auto-generate image using the new service (only once per card)
+  const autoGenerateImage = useCallback(async (immediate: boolean = false) => {
+    const cardId = getCardId();
     
-    // Only generate if we have some content to work with
-    if (!visualAidContent || !definitionContent) {
-      console.log('Skipping auto-generation: missing content', { visualAidContent: !!visualAidContent, definitionContent: !!definitionContent });
-      return;
+    // Don't generate if we've already attempted generation for this card
+    if (!cardId || generationAttempted === cardId) {
+      console.log('🛑 Skipping generation - already attempted for card:', cardId);
+      return { success: false, error: 'Generation already attempted for this card' };
     }
 
-    console.log('Starting auto-generation for topic:', activeCard.topic);
-    setIsGeneratingImage(true);
-    setImageGenerationError(null);
+    const contentInfo = getCurrentContentInfo();
+    
+    const config = immediate 
+      ? cardLoadingService.createImmediateGenerationConfig({
+          onStart: () => {
+            console.log('🎬 Starting image generation for:', cardId);
+            setGenerationAttempted(cardId); // Mark as attempted immediately
+            setIsGeneratingImage(true);
+            setImageGenerationError(null);
+          },
+          onComplete: (imageUrl) => {
+            console.log('✅ Image generation completed for:', cardId);
+            setGeneratedImage(imageUrl);
+            setTimeout(() => setShowGeneratedImage(true), 500);
+          },
+          onError: (error) => {
+            console.log('❌ Image generation failed for:', cardId, error);
+            setImageGenerationError(error);
+          }
+        })
+      : cardLoadingService.createDelayedGenerationConfig(1000, {
+          onStart: () => {
+            console.log('🎬 Starting delayed image generation for:', cardId);
+            setGenerationAttempted(cardId); // Mark as attempted immediately
+            setIsGeneratingImage(true);
+            setImageGenerationError(null);
+          },
+          onComplete: (imageUrl) => {
+            console.log('✅ Delayed image generation completed for:', cardId);
+            setGeneratedImage(imageUrl);
+            setTimeout(() => setShowGeneratedImage(true), 500);
+          },
+          onError: (error) => {
+            console.log('❌ Delayed image generation failed for:', cardId, error);
+            setImageGenerationError(error);
+          }
+        });
 
     try {
-      const response = await imageGenerationService.generateEducationalImage(
-        activeCard.topic,
-        definitionContent as string
-      );
-
-      if (response.success && response.imageUrl) {
-        setGeneratedImage(response.imageUrl);
-        // Small delay before showing the generated image for smoother UX
-        setTimeout(() => setShowGeneratedImage(true), 500);
-      } else {
-        setImageGenerationError(response.error || 'Failed to generate image');
-      }
+      const result = await cardLoadingService.autoGenerateImageWhenReady(contentInfo, config);
+      return result;
     } catch (error) {
+      console.error('Auto-generation error for:', cardId, error);
       setImageGenerationError(error instanceof Error ? error.message : 'Unknown error');
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [activeCard, generatedImage, isGeneratingImage, getSectionContent]);
+  }, [getCurrentContentInfo, getCardId, generationAttempted]);
 
-  // Trigger background generation when visual aid content becomes available
+  // Clear state when card changes
   useEffect(() => {
-    if (activeCard && getSectionContent('visualAid', '') && getSectionContent('definition', '')) {
-      // Small delay to ensure content is fully loaded
-      const timeoutId = setTimeout(generateImageInBackground, 1000);
-      return () => clearTimeout(timeoutId);
+    const cardId = getCardId();
+    
+    // Reset state for new card
+    if (generationAttempted && generationAttempted !== cardId) {
+      console.log('🔄 New card detected, resetting generation state. Old:', generationAttempted, 'New:', cardId);
+      setGeneratedImage(null);
+      setShowGeneratedImage(false);
+      setImageGenerationError(null);
+      setIsGeneratingImage(false);
+      setGenerationAttempted(null);
     }
-  }, [activeCard, generateImageInBackground]);
+  }, [getCardId, generationAttempted]);
+
+  // Use cached image if available, otherwise trigger immediate generation when ASCII loads
+  useEffect(() => {
+    const cardId = getCardId();
+    
+    if (cachedImage) {
+      // Use the pre-generated cached image
+      console.log('📸 Using cached image for:', cardId);
+      setGeneratedImage(cachedImage);
+      setTimeout(() => setShowGeneratedImage(true), 500);
+    } else if (cardId && generationAttempted !== cardId) {
+      const contentInfo = getCurrentContentInfo();
+      
+      // Start image generation immediately when ASCII content is available
+      if (cardLoadingService.isAsciiContentLoaded(contentInfo)) {
+        console.log('🚀 ASCII content loaded, starting immediate image generation for:', cardId);
+        autoGenerateImage(true); // Generate immediately when ASCII loads
+      }
+    }
+  }, [activeCard, cachedImage, autoGenerateImage, getCurrentContentInfo, getCardId, generationAttempted]);
 
   const handleLongPressStart = (event?: React.PointerEvent, area: string = 'general') => {
     if (!isActive) return;

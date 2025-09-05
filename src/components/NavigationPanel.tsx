@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Progress } from './ui/progress';
 import { ScrollArea } from './ui/scroll-area';
 import { 
   X,
@@ -11,15 +12,20 @@ import {
   Target,
   TrendingUp,
   ChevronRight,
-  Brain
+  Brain,
+  Loader2,
+  CheckCircle,
+  ImageIcon
 } from 'lucide-react';
 import { LearningCard } from '../services/openRouterService';
+import { CachedCard } from '../services/cardCacheService';
 
 interface NavigationPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  nextCards: LearningCard[];
+  cachedCards: CachedCard[];
   currentTopic: string;
+  onSelectCachedCard?: (cachedCard: CachedCard) => void;
   sessionStats?: {
     cardsCompleted: number;
     sessionTime: string;
@@ -30,8 +36,9 @@ interface NavigationPanelProps {
 function NavigationPanel({ 
   isOpen, 
   onClose, 
-  nextCards, 
+  cachedCards, 
   currentTopic,
+  onSelectCachedCard,
   sessionStats = {
     cardsCompleted: 0,
     sessionTime: '0:00',
@@ -123,56 +130,80 @@ function NavigationPanel({
                   </Card>
                 </div>
 
-                {/* Next Cards */}
-                {nextCards.length > 0 && (
+                {/* Cached Cards */}
+                {cachedCards.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                      Coming Up ({nextCards.length})
+                      Cached Cards ({cachedCards.length})
                     </h3>
                     <div className="space-y-3">
-                      {nextCards.slice(0, 5).map((card, index) => (
+                      {cachedCards.slice(0, 5).map((cachedCard, index) => (
                         <Card 
-                          key={card.id}
+                          key={cachedCard.id}
                           className="p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => onSelectCachedCard?.(cachedCard)}
                         >
                           <div className="flex items-start gap-3">
                             <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-xs font-medium text-primary">
-                                {index + 1}
-                              </span>
+                              {cachedCard.isFullyLoaded ? (
+                                <CheckCircle size={12} className="text-green-500" />
+                              ) : (
+                                <span className="text-xs font-medium text-primary">
+                                  {index + 1}
+                                </span>
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="text-sm font-medium text-foreground mb-1 line-clamp-1">
-                                {card.topic}
+                                {cachedCard.topic}
                               </h4>
                               <p className="text-xs text-muted-foreground line-clamp-2">
-                                {card.content.definition}
+                                {cachedCard.card?.content?.definition || 'Loading...'}
                               </p>
                               <div className="flex items-center gap-2 mt-2">
                                 <Badge 
                                   variant="secondary" 
                                   className="text-xs h-5"
                                 >
-                                  Level {card.difficulty}
+                                  Level {cachedCard.difficulty}
                                 </Badge>
-                                <Badge 
-                                  variant="outline" 
-                                  className="text-xs h-5"
-                                >
-                                  <Clock size={10} className="mr-1" />
-                                  {card.estimatedTime}m
-                                </Badge>
+                                {cachedCard.generatedImage && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-xs h-5"
+                                  >
+                                    <ImageIcon size={10} className="mr-1" />
+                                    AI
+                                  </Badge>
+                                )}
+                                {!cachedCard.isFullyLoaded && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-xs h-5"
+                                  >
+                                    <Loader2 size={10} className="mr-1 animate-spin" />
+                                    {cachedCard.loadingProgress}%
+                                  </Badge>
+                                )}
                               </div>
+                              
+                              {/* Loading Progress Bar */}
+                              {!cachedCard.isFullyLoaded && (
+                                <Progress 
+                                  value={cachedCard.loadingProgress} 
+                                  className="h-1 mt-2"
+                                />
+                              )}
                             </div>
                             <ChevronRight size={14} className="text-muted-foreground flex-shrink-0" />
                           </div>
                         </Card>
                       ))}
                       
-                      {nextCards.length > 5 && (
+                      {cachedCards.length > 5 && (
                         <div className="text-center py-2">
                           <span className="text-xs text-muted-foreground">
-                            +{nextCards.length - 5} more cards
+                            +{cachedCards.length - 5} more cached cards
                           </span>
                         </div>
                       )}
@@ -181,14 +212,14 @@ function NavigationPanel({
                 )}
 
                 {/* Empty State */}
-                {nextCards.length === 0 && (
+                {cachedCards.length === 0 && (
                   <div className="text-center py-8">
                     <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      No upcoming cards yet
+                      No cached cards yet
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Continue learning to generate more content
+                      Cards will be cached as you progress
                     </p>
                   </div>
                 )}

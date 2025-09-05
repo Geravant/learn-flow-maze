@@ -10,6 +10,7 @@ import { apiKeyManager } from '@/services/apiKeyManager';
 import { topicSuggestionService } from '@/services/topicSuggestionService';
 import { progressiveCardService, ProgressiveCard, CardSection } from '@/services/progressiveCardService';
 import { progressiveQuizService, ProgressiveQuiz, QuizQuestion as ProgressiveQuizQuestion } from '@/services/progressiveQuizService';
+import { cardCacheService, CachedCard } from '@/services/cardCacheService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -45,6 +46,8 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const [useProgressiveLoading, setUseProgressiveLoading] = useState(!isMobile);
   const [nextCards, setNextCards] = useState<ILearningCard[]>([]);
+  const [cachedCards, setCachedCards] = useState<CachedCard[]>([]);
+  const [currentCachedImage, setCurrentCachedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
@@ -99,6 +102,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       interval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - sessionStartTime.getTime()) / 1000);
         setSessionStats(prev => ({ ...prev, sessionTime: elapsed }));
+        
+        // Update cached cards list
+        setCachedCards(cardCacheService.getAllCachedCards());
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -334,6 +340,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       currentStreak: masteryIncrease >= 20 ? prev.currentStreak + 1 : 0
     }));
 
+    // Start cache warming for related topics
+    cardCacheService.preloadCards(activeCard.topic, activeCard.difficulty);
+
     // Move to next card
     if (progressiveCard) {
       // For progressive cards, generate a new progressive card from connections
@@ -350,6 +359,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
           
           setProgressiveCard(newProgressiveCard);
           setCurrentCard(null); // Keep traditional card cleared
+          setCurrentCachedImage(null); // Clear cached image
           
           toast({
             title: "Great progress!",
@@ -378,6 +388,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       const [next, ...remaining] = nextCards;
       setCurrentCard(next);
       setNextCards(remaining);
+      setCurrentCachedImage(null); // Clear cached image
 
       // Preload more cards if needed
       if (remaining.length < 2) {
@@ -457,6 +468,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       
       setCurrentCard(newCard);
       setProgressiveCard(null); // Clear progressive card when switching topics
+      setCurrentCachedImage(null); // Clear cached image
       
       toast({
         title: "New Topic Loaded",
@@ -467,6 +479,47 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       toast({
         title: "Topic Load Failed",
         description: "Failed to generate content for the selected topic.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSelectCachedCard = async (cachedCard: CachedCard) => {
+    try {
+      if (!cachedCard.isFullyLoaded) {
+        toast({
+          title: "Card Still Loading",
+          description: `${cachedCard.topic} is still being prepared (${cachedCard.loadingProgress}%)`,
+          variant: "default"
+        });
+        return;
+      }
+
+      // Switch to the cached card
+      setCurrentCard(cachedCard.card);
+      
+      // Set progressive card if available
+      if (cachedCard.progressiveCard) {
+        setProgressiveCard(cachedCard.progressiveCard);
+      } else {
+        setProgressiveCard(null);
+      }
+      
+      // Set the cached image if available
+      setCurrentCachedImage(cachedCard.generatedImage || null);
+      
+      // Close the navigation panel
+      setShowNavigationPanel(false);
+      
+      toast({
+        title: "Instant Load Complete!",
+        description: `Now exploring: ${cachedCard.topic}${cachedCard.generatedImage ? ' (with AI image)' : ''}`,
+      });
+    } catch (error) {
+      console.error('Failed to load cached card:', error);
+      toast({
+        title: "Failed to Load Card",
+        description: "Could not switch to the selected card.",
         variant: "destructive"
       });
     }
@@ -814,6 +867,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
               <LearningCard
                 card={currentCard}
                 progressiveCard={progressiveCard}
+                cachedImage={currentCachedImage}
                 actions={{
                   onUnderstand: handleUnderstand,
                   onQuickTest: handleQuickTest,    // Left swipe now opens quiz
@@ -862,8 +916,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       <NavigationPanel
         isOpen={showNavigationPanel}
         onClose={() => setShowNavigationPanel(false)}
-        nextCards={nextCards}
+        cachedCards={cachedCards}
         currentTopic={selectedTopic}
+        onSelectCachedCard={handleSelectCachedCard}
         sessionStats={{
           cardsCompleted: sessionStats.cardsCompleted,
           sessionTime: formatSessionTime(sessionStats.sessionTime),
