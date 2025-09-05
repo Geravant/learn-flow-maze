@@ -6,8 +6,7 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // Set base URL for GitHub Pages deployment
-  // Uses VITE_BASE_PATH if set, otherwise defaults to repository name
-  base: process.env.VITE_BASE_PATH || (process.env.NODE_ENV === 'production' ? '/learn-flow-maze/' : '/'),
+  base: process.env.NODE_ENV === 'production' ? '/learn-flow-maze/' : '/',
   server: {
     host: "::",
     port: 8080,

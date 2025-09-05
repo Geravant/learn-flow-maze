@@ -93,7 +93,7 @@ IMPORTANT:
 - Make it engaging, bite-sized, and mobile-friendly.`;
 
     const response = await this.makeRequest('/chat/completions', {
-      model: 'google/gemini-2.5-flash-lite',
+      model: 'anthropic/claude-3.5-sonnet',
       messages: [
         {
           role: 'system',
