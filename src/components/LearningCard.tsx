@@ -56,6 +56,8 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
   const [isDragging, setIsDragging] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [showRadialNav, setShowRadialNav] = useState(false);
+  const [contextualConcepts, setContextualConcepts] = useState<string[]>([]);
+  const [tappedArea, setTappedArea] = useState<string>('general');
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressThreshold = 500; // 500ms for long press
   
@@ -154,9 +156,11 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
     }
   };
 
-  const handleLongPressStart = () => {
+  const handleLongPressStart = (event?: React.PointerEvent, area: string = 'general') => {
     if (!isActive) return;
     longPressTimer.current = setTimeout(() => {
+      setTappedArea(area);
+      setContextualConcepts(generateContextualConcepts(area));
       setShowRadialNav(true);
     }, longPressThreshold);
   };
@@ -190,6 +194,51 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
 
   const formatTime = (minutes: number) => {
     return `${minutes} min${minutes !== 1 ? 's' : ''}`;
+  };
+
+  const generateContextualConcepts = (area: string): string[] => {
+    const allConnections = getSectionContent('connections', []) as string[];
+    const keyPoints = getSectionContent('keyPoints', []) as string[];
+    const examples = getSectionContent('examples', []) as string[];
+    
+    switch (area) {
+      case 'definition':
+        return [
+          `Basic ${activeCard.topic}`,
+          `${activeCard.topic} Fundamentals`,
+          `Introduction to ${activeCard.topic}`,
+          `${activeCard.topic} Overview`,
+          `Understanding ${activeCard.topic}`
+        ].slice(0, 6);
+        
+      case 'keyPoints':
+        return keyPoints.length > 0 
+          ? keyPoints.map(point => `${point.split(' ').slice(0, 3).join(' ')} Deep Dive`).slice(0, 6)
+          : [`Advanced ${activeCard.topic}`, `${activeCard.topic} Principles`, `${activeCard.topic} Core Concepts`];
+          
+      case 'examples':
+        return examples.length > 0
+          ? [
+              `Real-world ${activeCard.topic}`,
+              `${activeCard.topic} Applications`,
+              `${activeCard.topic} Case Studies`,
+              `Practical ${activeCard.topic}`,
+              `${activeCard.topic} in Practice`
+            ].slice(0, 6)
+          : [`Applied ${activeCard.topic}`, `${activeCard.topic} Uses`];
+          
+      case 'visualAid':
+        return [
+          `Visual ${activeCard.topic}`,
+          `${activeCard.topic} Diagrams`,
+          `${activeCard.topic} Models`,
+          `${activeCard.topic} Patterns`,
+          `${activeCard.topic} Structure`
+        ].slice(0, 6);
+        
+      default:
+        return allConnections.slice(0, 6);
+    }
   };
 
   return (
@@ -268,7 +317,12 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
           </div>
 
           {/* Definition */}
-          <div className="space-y-2">
+          <div 
+            className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+            onPointerDown={(e) => handleLongPressStart(e, 'definition')}
+            onPointerUp={handleLongPressEnd}
+            onPointerLeave={handleLongPressEnd}
+          >
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <BookOpen size={16} />
               <span>Description</span>
@@ -284,7 +338,12 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
 
           {/* Visual Aid */}
           {(getSectionContent('visualAid') || getSectionLoading('visualAid')) && (
-            <div className="space-y-2">
+            <div 
+              className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+              onPointerDown={(e) => handleLongPressStart(e, 'visualAid')}
+              onPointerUp={handleLongPressEnd}
+              onPointerLeave={handleLongPressEnd}
+            >
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Target size={16} />
                 <span>Visual</span>
@@ -302,7 +361,12 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
           )}
 
           {/* Key Points */}
-          <div className="space-y-2">
+          <div 
+            className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+            onPointerDown={(e) => handleLongPressStart(e, 'keyPoints')}
+            onPointerUp={handleLongPressEnd}
+            onPointerLeave={handleLongPressEnd}
+          >
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Brain size={16} />
               <span>Learning Objectives</span>
@@ -323,7 +387,12 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
 
           {/* Examples */}
           {(getSectionContent('examples', []).length > 0 || getSectionLoading('examples')) && (
-            <div className="space-y-2">
+            <div 
+              className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+              onPointerDown={(e) => handleLongPressStart(e, 'examples')}
+              onPointerUp={handleLongPressEnd}
+              onPointerLeave={handleLongPressEnd}
+            >
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Zap size={16} />
                 <span>Examples</span>
@@ -359,7 +428,8 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
         onClose={handleRadialNavClose}
         onSelectTopic={handleTopicSelect}
         currentTopic={activeCard.topic}
-        surroundingConcepts={getSectionContent('connections', []) as string[]}
+        surroundingConcepts={contextualConcepts}
+        contextArea={tappedArea}
       />
     </div>
   );

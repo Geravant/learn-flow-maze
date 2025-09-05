@@ -15,6 +15,7 @@ interface RadialNavigationPanelProps {
   onSelectTopic: (topic: string) => void;
   currentTopic: string;
   surroundingConcepts: string[];
+  contextArea?: string;
 }
 
 export function RadialNavigationPanel({ 
@@ -22,7 +23,8 @@ export function RadialNavigationPanel({
   onClose, 
   onSelectTopic, 
   currentTopic,
-  surroundingConcepts 
+  surroundingConcepts,
+  contextArea = 'general'
 }: RadialNavigationPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   
@@ -119,16 +121,19 @@ export function RadialNavigationPanel({
               {/* Current topic in center */}
               <text
                 x={centerX}
-                y={centerY - 5}
+                y={centerY - 8}
                 textAnchor="middle"
-                className="fill-foreground text-xs font-medium"
-                style={{ fontSize: '11px' }}
+                className="fill-muted-foreground text-xs"
+                style={{ fontSize: '9px' }}
               >
-                Current:
+                {contextArea === 'definition' ? 'Basics' : 
+                 contextArea === 'keyPoints' ? 'Deep Dive' :
+                 contextArea === 'examples' ? 'Applications' :
+                 contextArea === 'visualAid' ? 'Visual' : 'Related'}
               </text>
               <text
                 x={centerX}
-                y={centerY + 8}
+                y={centerY + 5}
                 textAnchor="middle"
                 className="fill-primary text-xs font-bold"
                 style={{ fontSize: '10px' }}
@@ -240,7 +245,10 @@ export function RadialNavigationPanel({
               transition={{ delay: 0.5 }}
             >
               <p className="text-xs text-muted-foreground">
-                Select a concept to explore next
+                {contextArea === 'definition' ? 'Explore fundamentals' :
+                 contextArea === 'keyPoints' ? 'Deep dive topics' :
+                 contextArea === 'examples' ? 'Real applications' :
+                 contextArea === 'visualAid' ? 'Visual concepts' : 'Related topics'}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Tap outside or press ESC to close
