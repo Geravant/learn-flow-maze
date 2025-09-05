@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useSpring, animated } from 'react-spring';
 import { LearningCard as ILearningCard } from '@/services/openRouterService';
 import { ProgressiveCard, CardSection } from '@/services/progressiveCardService';
+import { imageGenerationService } from '@/services/imageGenerationService';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +19,8 @@ import {
   BookOpen,
   Target,
   Brain,
-  Loader2
+  Loader2,
+  ImageIcon
 } from 'lucide-react';
 
 interface SwipeActions {
@@ -60,6 +62,12 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
   const [tappedArea, setTappedArea] = useState<string>('general');
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressThreshold = 500; // 500ms for long press
+  
+  // Auto-generation state
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [imageGenerationError, setImageGenerationError] = useState<string | null>(null);
+  const [showGeneratedImage, setShowGeneratedImage] = useState(false);
   
   // Use progressive card if available, otherwise use traditional card
   const activeCard = progressiveCard || card;
@@ -155,6 +163,68 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
       actions.onNavigate(); // Center tap now opens navigation
     }
   };
+
+  // Auto-generate image when card loads
+  const generateImageInBackground = useCallback(async () => {
+    console.log('Auto-generation check:', {
+      apiKeyAvailable: imageGenerationService.isImageGenerationAvailable(),
+      hasActiveCard: !!activeCard,
+      hasGeneratedImage: !!generatedImage,
+      isGenerating: isGeneratingImage
+    });
+
+    if (!imageGenerationService.isImageGenerationAvailable() || !activeCard) {
+      console.log('Skipping auto-generation: API key not available or no active card');
+      return;
+    }
+
+    // Don't generate if we already have an image or are currently generating
+    if (generatedImage || isGeneratingImage) {
+      console.log('Skipping auto-generation: already have image or currently generating');
+      return;
+    }
+
+    const visualAidContent = getSectionContent('visualAid', '');
+    const definitionContent = getSectionContent('definition', '');
+    
+    // Only generate if we have some content to work with
+    if (!visualAidContent || !definitionContent) {
+      console.log('Skipping auto-generation: missing content', { visualAidContent: !!visualAidContent, definitionContent: !!definitionContent });
+      return;
+    }
+
+    console.log('Starting auto-generation for topic:', activeCard.topic);
+    setIsGeneratingImage(true);
+    setImageGenerationError(null);
+
+    try {
+      const response = await imageGenerationService.generateEducationalImage(
+        activeCard.topic,
+        definitionContent as string
+      );
+
+      if (response.success && response.imageUrl) {
+        setGeneratedImage(response.imageUrl);
+        // Small delay before showing the generated image for smoother UX
+        setTimeout(() => setShowGeneratedImage(true), 500);
+      } else {
+        setImageGenerationError(response.error || 'Failed to generate image');
+      }
+    } catch (error) {
+      setImageGenerationError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }, [activeCard, generatedImage, isGeneratingImage, getSectionContent]);
+
+  // Trigger background generation when visual aid content becomes available
+  useEffect(() => {
+    if (activeCard && getSectionContent('visualAid', '') && getSectionContent('definition', '')) {
+      // Small delay to ensure content is fully loaded
+      const timeoutId = setTimeout(generateImageInBackground, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activeCard, generateImageInBackground]);
 
   const handleLongPressStart = (event?: React.PointerEvent, area: string = 'general') => {
     if (!isActive) return;
@@ -351,10 +421,89 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
               {getSectionLoading('visualAid') ? (
                 <SectionLoader loading={true} />
               ) : (
-                <div className="bg-muted/50 p-3 rounded-md">
-                  <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
-                    {getSectionContent('visualAid')}
-                  </pre>
+                <div className="space-y-3">
+                  <div className="relative">
+                    {/* ASCII Art - always show initially */}
+                    <motion.div
+                      className="bg-muted/50 p-3 rounded-md"
+                      animate={{
+                        opacity: showGeneratedImage ? 0 : 1,
+                        scale: showGeneratedImage ? 0.95 : 1
+                      }}
+                      transition={{ duration: 0.3 }}
+                      style={{
+                        position: showGeneratedImage ? 'absolute' : 'relative',
+                        zIndex: showGeneratedImage ? 1 : 2
+                      }}
+                    >
+                      <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
+                        {getSectionContent('visualAid')}
+                      </pre>
+                    </motion.div>
+                    
+                    {/* Generated Image - shows when ready */}
+                    {generatedImage && (
+                      <motion.div
+                        className="rounded-md overflow-hidden border shadow-sm"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{
+                          opacity: showGeneratedImage ? 1 : 0,
+                          scale: showGeneratedImage ? 1 : 0.95
+                        }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        style={{
+                          position: showGeneratedImage ? 'relative' : 'absolute',
+                          top: showGeneratedImage ? 0 : '12px',
+                          left: 0,
+                          right: 0,
+                          zIndex: showGeneratedImage ? 2 : 1
+                        }}
+                      >
+                        <img
+                          src={generatedImage}
+                          alt={`AI-generated visualization for: ${activeCard.topic}`}
+                          className="w-full h-auto"
+                          style={{ maxHeight: '300px', objectFit: 'contain' }}
+                          onError={() => {
+                            setImageGenerationError('Failed to load generated image');
+                            setShowGeneratedImage(false);
+                          }}
+                        />
+                      </motion.div>
+                    )}
+                  </div>
+                  
+                  {/* Status and Controls */}
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      {isGeneratingImage && (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          <span>Generating AI image...</span>
+                        </>
+                      )}
+                      {generatedImage && !showGeneratedImage && (
+                        <>
+                          <CheckCircle size={12} className="text-green-500" />
+                          <span>AI image ready</span>
+                        </>
+                      )}
+                      {imageGenerationError && (
+                        <span className="text-red-500">Generation failed</span>
+                      )}
+                    </div>
+                    
+                    {generatedImage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowGeneratedImage(!showGeneratedImage)}
+                        className="h-6 px-2 text-xs"
+                      >
+                        {showGeneratedImage ? 'Show ASCII' : 'Show AI Image'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
