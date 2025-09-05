@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LearningCard } from './LearningCard';
 import { QuizModal } from './QuizModal';
 import { AITutorModal } from './AITutorModal';
+import { NavigationPanel } from './NavigationPanel';
 import { openRouterService, LearningCard as ILearningCard, QuizQuestion } from '@/services/openRouterService';
 import { wikiCardService } from '@/services/wikiCardService';
 import { apiKeyManager } from '@/services/apiKeyManager';
@@ -65,8 +66,16 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
   const [topicSet, setTopicSet] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showNavigationPanel, setShowNavigationPanel] = useState(false);
   
   const { toast } = useToast();
+
+  // Helper function to format session time
+  const formatSessionTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     // Check if we have an API key from environment or user input
@@ -133,10 +142,21 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     }
 
     setTopicSet(true);
-    toast({
-      title: "Topic Selected!",
-      description: `Ready to explore: ${selectedTopic}`,
-    });
+    
+    // If API key is already set, auto-start the session
+    if (apiKeySet && !sessionActive) {
+      setSessionActive(true);
+      setSessionStartTime(new Date());
+      toast({
+        title: "Starting learning session!",
+        description: `Generating cards for: ${selectedTopic}`,
+      });
+    } else {
+      toast({
+        title: "Topic Selected!",
+        description: `Ready to explore: ${selectedTopic}`,
+      });
+    }
   };
 
   const handleApiKeySubmit = () => {
@@ -162,9 +182,14 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     // Set the API key through the centralized manager
     apiKeyManager.setApiKey(apiKey);
     setApiKeySet(true);
+    
+    // Auto-start the session immediately
+    setSessionActive(true);
+    setSessionStartTime(new Date());
+    
     toast({
-      title: "Ready to Learn!",
-      description: "API key set successfully. Let's start learning!",
+      title: "Starting your learning session!",
+      description: "Generating your first learning card...",
     });
   };
 
@@ -391,13 +416,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     }
   };
 
-  const handleReview = () => {
-    // Add to review queue logic here
-    moveToNextCard(10);
-    toast({
-      title: "Added to review",
-      description: "We'll revisit this concept later.",
-    });
+  const handleNavigate = () => {
+    // Center tap now opens navigation panel
+    setShowNavigationPanel(true);
   };
 
   const handleHelp = async () => {
@@ -716,14 +737,17 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button
-              size="sm"
-              variant={sessionActive ? "destructive" : "default"}
-              onClick={sessionActive ? pauseSession : startSession}
-            >
-              {sessionActive ? <Pause size={16} /> : <Play size={16} />}
-              {sessionActive ? 'Pause' : 'Start'}
-            </Button>
+            {/* Only show pause button when session is active, no manual start needed */}
+            {sessionActive && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={pauseSession}
+              >
+                <Pause size={16} />
+                Pause
+              </Button>
+            )}
             
             <div className="flex items-center gap-3 text-sm">
               <Badge variant="outline">
@@ -768,10 +792,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
                 progressiveCard={progressiveCard}
                 actions={{
                   onUnderstand: handleUnderstand,
-                  onReview: handleReview,
+                  onQuickTest: handleQuickTest,    // Left swipe now opens quiz
                   onHelp: handleHelp,
                   onExplore: handleExplore,
-                  onQuickTest: handleQuickTest
+                  onNavigate: handleNavigate        // Center tap now opens navigation
                 }}
                 isActive={sessionActive}
               />
@@ -780,29 +804,15 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
             <BookOpen className="w-12 h-12 text-muted-foreground" />
-            <p className="text-muted-foreground">Press Start to begin your learning session</p>
+            <p className="text-muted-foreground">
+              {sessionActive ? 'Generating your first learning card...' : 'Ready to begin your learning session'}
+            </p>
+            {sessionActive && (
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            )}
           </div>
         )}
 
-        {/* Next Cards Preview */}
-        {nextCards.length > 0 && (
-          <div className="mt-8 space-y-3">
-            <h3 className="text-sm font-medium text-muted-foreground">Coming up:</h3>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {nextCards.slice(0, 3).map((card, index) => (
-                <div
-                  key={card.id}
-                  className="flex-shrink-0 bg-card border border-border rounded-lg p-3 w-48"
-                >
-                  <h4 className="text-sm font-medium text-foreground mb-1">{card.topic}</h4>
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {card.content.definition}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Quiz Modal */}
@@ -822,6 +832,19 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
           onClose={() => setShowAITutor(false)}
         />
       )}
+
+      {/* Navigation Panel */}
+      <NavigationPanel
+        isOpen={showNavigationPanel}
+        onClose={() => setShowNavigationPanel(false)}
+        nextCards={nextCards}
+        currentTopic={selectedTopic}
+        sessionStats={{
+          cardsCompleted: sessionStats.cardsCompleted,
+          sessionTime: formatSessionTime(sessionStats.sessionTime),
+          masteryLevel: Math.round((sessionStats.accuracyRate || 0) * 100)
+        }}
+      />
     </div>
   );
 }

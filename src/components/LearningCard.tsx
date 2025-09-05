@@ -22,10 +22,10 @@ import {
 
 interface SwipeActions {
   onUnderstand: () => void;    // Right swipe
-  onReview: () => void;        // Left swipe  
+  onQuickTest: () => void;     // Left swipe (was review, now quiz)
   onHelp: () => void;          // Up swipe
   onExplore: () => void;       // Down swipe
-  onQuickTest: () => void;     // Center tap
+  onNavigate: () => void;      // Center tap (was quick test, now navigation)
 }
 
 interface LearningCardProps {
@@ -127,7 +127,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
       if (offset.x > SWIPE_THRESHOLD) {
         actions.onUnderstand();
       } else if (offset.x < -SWIPE_THRESHOLD) {
-        actions.onReview();
+        actions.onQuickTest(); // Left swipe now opens quiz
       }
     } else {
       // Vertical swipe
@@ -145,7 +145,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
 
   const handleTap = () => {
     if (!isDragging) {
-      actions.onQuickTest();
+      actions.onNavigate(); // Center tap now opens navigation
     }
   };
 
