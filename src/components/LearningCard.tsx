@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useSpring, animated } from 'react-spring';
 import { LearningCard as ILearningCard } from '@/services/openRouterService';
@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { RadialNavigationPanel } from '@/components/RadialNavigationPanel';
 import { 
   CheckCircle, 
   Clock, 
@@ -26,6 +27,7 @@ interface SwipeActions {
   onHelp: () => void;          // Up swipe
   onExplore: () => void;       // Down swipe
   onNavigate: () => void;      // Center tap (was quick test, now navigation)
+  onSelectTopic: (topic: string) => void; // From radial navigation
 }
 
 interface LearningCardProps {
@@ -53,6 +55,9 @@ const SectionLoader = ({ loading, error }: { loading: boolean; error?: string })
 export function LearningCard({ card, progressiveCard, actions, isActive = true }: LearningCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [showHints, setShowHints] = useState(false);
+  const [showRadialNav, setShowRadialNav] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const longPressThreshold = 500; // 500ms for long press
   
   // Use progressive card if available, otherwise use traditional card
   const activeCard = progressiveCard || card;
@@ -149,6 +154,29 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
     }
   };
 
+  const handleLongPressStart = () => {
+    if (!isActive) return;
+    longPressTimer.current = setTimeout(() => {
+      setShowRadialNav(true);
+    }, longPressThreshold);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleRadialNavClose = () => {
+    setShowRadialNav(false);
+  };
+
+  const handleTopicSelect = (topic: string) => {
+    actions.onSelectTopic(topic);
+    setShowRadialNav(false);
+  };
+
   const getDifficultyColor = (level: number) => {
     switch (level) {
       case 1: return 'bg-green-500';
@@ -199,6 +227,9 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onTap={handleTap}
+        onPointerDown={handleLongPressStart}
+        onPointerUp={handleLongPressEnd}
+        onPointerLeave={handleLongPressEnd}
         style={{
           x,
           y,
@@ -315,12 +346,21 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
           {isActive && !isDragging && (
             <div className="text-center pt-2">
               <p className="text-xs text-muted-foreground">
-                Tap for quick test • Swipe to navigate
+                Tap for quick test • Long press for concepts
               </p>
             </div>
           )}
         </Card>
       </motion.div>
+
+      {/* Radial Navigation Panel */}
+      <RadialNavigationPanel
+        isOpen={showRadialNav}
+        onClose={handleRadialNavClose}
+        onSelectTopic={handleTopicSelect}
+        currentTopic={activeCard.topic}
+        surroundingConcepts={getSectionContent('connections', []) as string[]}
+      />
     </div>
   );
 }

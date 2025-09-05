@@ -442,12 +442,36 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     } catch (error) {
       console.error('Failed to generate exploration card:', error);
       toast({
-        title: "Exploration failed",
-        description: "Couldn't generate new content. Try again.",
+        title: "Exploration Failed",
+        description: "Failed to generate new content. Please try again.",
         variant: "destructive"
       });
     }
   };
+
+  const handleSelectTopic = async (topic: string) => {
+    if (!currentCard) return;
+    
+    try {
+      const newCard = await openRouterService.generateLearningCard(topic, currentCard.difficulty);
+      
+      setCurrentCard(newCard);
+      setProgressiveCard(null); // Clear progressive card when switching topics
+      
+      toast({
+        title: "New Topic Loaded",
+        description: `Now exploring: ${topic}`,
+      });
+    } catch (error) {
+      console.error('Failed to generate card for selected topic:', error);
+      toast({
+        title: "Topic Load Failed",
+        description: "Failed to generate content for the selected topic.",
+        variant: "destructive"
+      });
+    }
+  };
+
 
   const handleProgressiveQuizUpdate = (question: ProgressiveQuizQuestion) => {
     setProgressiveQuiz(prev => {
@@ -795,7 +819,8 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
                   onQuickTest: handleQuickTest,    // Left swipe now opens quiz
                   onHelp: handleHelp,
                   onExplore: handleExplore,
-                  onNavigate: handleNavigate        // Center tap now opens navigation
+                  onNavigate: handleNavigate,       // Center tap now opens navigation
+                  onSelectTopic: handleSelectTopic  // From radial navigation
                 }}
                 isActive={sessionActive}
               />
