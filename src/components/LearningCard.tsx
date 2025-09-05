@@ -18,7 +18,6 @@ import {
   Zap,
   BookOpen,
   Target,
-  Brain,
   Loader2,
   ImageIcon
 } from 'lucide-react';
@@ -268,7 +267,6 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
 
   const generateContextualConcepts = (area: string): string[] => {
     const allConnections = getSectionContent('connections', []) as string[];
-    const keyPoints = getSectionContent('keyPoints', []) as string[];
     const examples = getSectionContent('examples', []) as string[];
     
     switch (area) {
@@ -280,11 +278,6 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
           `${activeCard.topic} Overview`,
           `Understanding ${activeCard.topic}`
         ].slice(0, 6);
-        
-      case 'keyPoints':
-        return keyPoints.length > 0 
-          ? keyPoints.map(point => `${point.split(' ').slice(0, 3).join(' ')} Deep Dive`).slice(0, 6)
-          : [`Advanced ${activeCard.topic}`, `${activeCard.topic} Principles`, `${activeCard.topic} Core Concepts`];
           
       case 'examples':
         return examples.length > 0
@@ -509,30 +502,6 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true }
             </div>
           )}
 
-          {/* Key Points */}
-          <div 
-            className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
-            onPointerDown={(e) => handleLongPressStart(e, 'keyPoints')}
-            onPointerUp={handleLongPressEnd}
-            onPointerLeave={handleLongPressEnd}
-          >
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Brain size={16} />
-              <span>Learning Objectives</span>
-            </div>
-            {getSectionLoading('keyPoints') ? (
-              <SectionLoader loading={true} />
-            ) : (
-              <ul className="space-y-1">
-                {(getSectionContent('keyPoints', []) as string[]).map((point: string, index: number) => (
-                  <li key={index} className="text-sm text-foreground flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
 
           {/* Examples */}
           {(getSectionContent('examples', []).length > 0 || getSectionLoading('examples')) && (
