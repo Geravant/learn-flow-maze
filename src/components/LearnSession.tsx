@@ -229,6 +229,18 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
           setProgressiveCard(card);
           setCurrentCard(null); // Clear traditional card
           
+          // Start cache warming immediately for progressive cards
+          console.log('🔥 Starting immediate cache warming for progressive card:', selectedTopic);
+          cardCacheService.preloadCards(selectedTopic, 3);
+          
+          // Notify user that cache is being populated
+          setTimeout(() => {
+            toast({
+              title: "Building Navigation Cache",
+              description: "Preparing related concepts for instant access",
+            });
+          }, 2000); // Show after 2 seconds to avoid spam
+          
           toast({
             title: "Progressive Loading Started",
             description: `Generating content for: ${selectedTopic}`,
@@ -239,6 +251,18 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
           const fallbackCard = await openRouterService.generateLearningCard(selectedTopic, 3);
           setCurrentCard(fallbackCard);
           setProgressiveCard(null);
+          
+          // Start cache warming for fallback traditional card
+          console.log('🔥 Starting cache warming for fallback traditional card:', selectedTopic);
+          cardCacheService.preloadCards(selectedTopic, 3);
+          
+          // Notify user that cache is being populated
+          setTimeout(() => {
+            toast({
+              title: "Building Navigation Cache",
+              description: "Preparing related concepts for instant access",
+            });
+          }, 2000);
           
           toast({
             title: "Using Traditional Loading",
@@ -277,6 +301,18 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         
         setCurrentCard(card);
         setProgressiveCard(null); // Clear progressive card
+        
+        // Start cache warming immediately for traditional card
+        console.log('🔥 Starting immediate cache warming for traditional card:', selectedTopic);
+        cardCacheService.preloadCards(selectedTopic, 3);
+        
+        // Notify user that cache is being populated
+        setTimeout(() => {
+          toast({
+            title: "Building Navigation Cache",
+            description: "Preparing related concepts for instant access",
+          });
+        }, 2000);
       }
       
       // Preload next cards - mix both engines if available

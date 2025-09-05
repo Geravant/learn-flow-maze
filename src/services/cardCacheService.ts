@@ -208,20 +208,78 @@ class CardCacheService {
     console.warn('Progressive card sections did not complete within timeout');
   }
 
-  // Generate related topics for preloading
+  // Generate related topics for preloading with intelligent adjustments
   private async generateRelatedTopics(currentTopic: string, count: number): Promise<string[]> {
     try {
+      console.log(`🧠 Generating ${count} related topics for: "${currentTopic}"`);
+      
+      // Get AI-generated connections
       const connections = await openRouterService.generateConnections(currentTopic);
-      return connections.slice(0, count);
+      
+      if (connections && connections.length > 0) {
+        console.log(`✅ Generated ${connections.length} AI connections for "${currentTopic}":`, connections);
+        return connections.slice(0, count);
+      } else {
+        console.log(`⚠️ No AI connections generated for "${currentTopic}", using intelligent fallbacks`);
+        return this.generateIntelligentFallbacks(currentTopic, count);
+      }
     } catch (error) {
-      console.error('Failed to generate related topics:', error);
-      // Fallback to simple related topics
-      return [
-        `Advanced ${currentTopic}`,
-        `${currentTopic} Applications`,
-        `${currentTopic} Theory`
-      ].slice(0, count);
+      console.error(`❌ Failed to generate related topics for "${currentTopic}":`, error);
+      return this.generateIntelligentFallbacks(currentTopic, count);
     }
+  }
+
+  // Generate intelligent fallback topics based on the current topic
+  private generateIntelligentFallbacks(currentTopic: string, count: number): string[] {
+    const fallbacks: string[] = [];
+    const topic = currentTopic.toLowerCase();
+    
+    // Add foundational concepts
+    if (!topic.includes('fundamentals') && !topic.includes('basics')) {
+      fallbacks.push(`${currentTopic} Fundamentals`);
+    }
+    
+    // Add advanced concepts
+    if (!topic.includes('advanced')) {
+      fallbacks.push(`Advanced ${currentTopic}`);
+    }
+    
+    // Add practical applications
+    if (!topic.includes('applications') && !topic.includes('uses')) {
+      fallbacks.push(`${currentTopic} Applications`);
+    }
+    
+    // Add related fields based on topic type
+    if (topic.includes('machine learning') || topic.includes('ai')) {
+      fallbacks.push('Deep Learning', 'Neural Networks', 'Natural Language Processing');
+    } else if (topic.includes('physics') || topic.includes('quantum')) {
+      fallbacks.push('Classical Physics', 'Thermodynamics', 'Electromagnetic Theory');
+    } else if (topic.includes('psychology') || topic.includes('cognitive')) {
+      fallbacks.push('Behavioral Psychology', 'Cognitive Science', 'Social Psychology');
+    } else if (topic.includes('economics') || topic.includes('finance')) {
+      fallbacks.push('Microeconomics', 'Market Theory', 'Financial Analysis');
+    } else if (topic.includes('biology') || topic.includes('life')) {
+      fallbacks.push('Molecular Biology', 'Genetics', 'Evolution');
+    } else if (topic.includes('chemistry')) {
+      fallbacks.push('Organic Chemistry', 'Biochemistry', 'Physical Chemistry');
+    } else if (topic.includes('mathematics') || topic.includes('math')) {
+      fallbacks.push('Calculus', 'Linear Algebra', 'Statistics');
+    } else if (topic.includes('programming') || topic.includes('software')) {
+      fallbacks.push('Data Structures', 'Algorithms', 'Software Design');
+    } else {
+      // Generic fallbacks for any topic
+      fallbacks.push(
+        `${currentTopic} Theory`,
+        `${currentTopic} History`,
+        `${currentTopic} Case Studies`,
+        `${currentTopic} Research Methods`,
+        `Modern ${currentTopic}`,
+        `${currentTopic} Trends`
+      );
+    }
+    
+    console.log(`🎯 Generated ${Math.min(fallbacks.length, count)} intelligent fallbacks for "${currentTopic}":`, fallbacks.slice(0, count));
+    return fallbacks.slice(0, count);
   }
 
   // Clean up old cached cards to maintain memory limits
