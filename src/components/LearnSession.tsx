@@ -11,6 +11,7 @@ import { topicSuggestionService } from '@/services/topicSuggestionService';
 import { progressiveCardService, ProgressiveCard, CardSection } from '@/services/progressiveCardService';
 import { progressiveQuizService, ProgressiveQuiz, QuizQuestion as ProgressiveQuizQuestion } from '@/services/progressiveQuizService';
 import { cardCacheService, CachedCard } from '@/services/cardCacheService';
+import { jokeGenerationService } from '@/services/jokeGenerationService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -70,6 +71,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   const [topicSet, setTopicSet] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [showNavigationPanel, setShowNavigationPanel] = useState(false);
+  const [loadingJoke, setLoadingJoke] = useState<string>('');
   
   const { toast } = useToast();
 
@@ -78,6 +80,18 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Helper function to generate and set a loading joke for a topic
+  const generateAndSetLoadingJoke = async (topic: string): Promise<void> => {
+    try {
+      const joke = await jokeGenerationService.generateLoadingJoke(topic, true); // Always force new
+      setLoadingJoke(joke);
+      console.log(`😄 Generated fresh loading joke for "${topic}":`, joke);
+    } catch (error) {
+      console.warn('Failed to generate loading joke, using fallback');
+      setLoadingJoke(`Preparing your ${topic} adventure! 🚀`);
+    }
   };
 
   useEffect(() => {
@@ -195,7 +209,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     
     toast({
       title: "Starting your learning session!",
-      description: "Generating your first learning card...",
+      description: loadingJoke || "Preparing your learning adventure...",
     });
   };
 
@@ -216,6 +230,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
 
   const generateFirstCard = async () => {
     setLoading(true);
+    
+    // Generate a fresh joke at the beginning of loading
+    await generateAndSetLoadingJoke(selectedTopic);
+    
     try {
       if (useProgressiveLoading) {
         // Use progressive loading
@@ -345,6 +363,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       });
     } finally {
       setLoading(false);
+      setLoadingJoke(''); // Clear loading joke when card generation is complete
     }
   };
 
@@ -386,6 +405,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         const connections = await openRouterService.generateConnections(activeCard.topic);
         if (connections.length > 0) {
           const nextTopic = connections[Math.floor(Math.random() * connections.length)];
+          
+          // Generate fresh joke for the new topic
+          await generateAndSetLoadingJoke(nextTopic);
           
           const newProgressiveCard = await progressiveCardService.generateProgressiveCard(
             nextTopic,
@@ -479,6 +501,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     try {
       const connections = await openRouterService.generateConnections(currentCard.topic);
       const randomTopic = connections[Math.floor(Math.random() * connections.length)];
+      
+      // Generate fresh joke for exploration
+      await generateAndSetLoadingJoke(randomTopic);
+      
       const newCard = await openRouterService.generateLearningCard(randomTopic, currentCard.difficulty);
       
       setCurrentCard(newCard);
@@ -500,6 +526,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     if (!currentCard) return;
     
     try {
+      // Generate fresh joke for selected topic
+      await generateAndSetLoadingJoke(topic);
+      
       const newCard = await openRouterService.generateLearningCard(topic, currentCard.difficulty);
       
       setCurrentCard(newCard);
@@ -711,6 +740,7 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       setProgressiveQuiz(null);
     } finally {
       setLoading(false);
+      setLoadingJoke(''); // Clear loading joke when quiz generation is complete
     }
   };
 
@@ -973,7 +1003,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         {loading && !currentCard ? (
           <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
             <RefreshCcw className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Generating your first learning card...</p>
+            <p className="text-muted-foreground text-center max-w-md">
+              {loadingJoke || "Preparing your learning adventure..."}
+            </p>
           </div>
         ) : (currentCard || progressiveCard) ? (
           <AnimatePresence mode="wait">
@@ -1005,8 +1037,8 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
             <BookOpen className="w-12 h-12 text-muted-foreground" />
-            <p className="text-muted-foreground">
-              {sessionActive ? 'Generating your first learning card...' : 'Ready to begin your learning session'}
+            <p className="text-muted-foreground text-center max-w-md">
+              {sessionActive ? (loadingJoke || 'Preparing your learning adventure...') : 'Ready to begin your learning session'}
             </p>
             {sessionActive && (
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

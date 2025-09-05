@@ -270,6 +270,18 @@ Keep it concise and mobile-friendly.`;
 
     return response.choices[0].message.content;
   }
+
+  // Public method for simple message requests (for joke service and other utilities)
+  async makeSimpleRequest(messages: Array<{role: string, content: string}>, options: {max_tokens?: number, temperature?: number} = {}): Promise<string> {
+    const response = await this.makeRequest('/chat/completions', {
+      model: 'anthropic/claude-3.5-sonnet',
+      messages,
+      temperature: options.temperature || 0.7,
+      max_tokens: options.max_tokens || 200
+    });
+
+    return response.choices[0].message.content;
+  }
 }
 
 export const openRouterService = new OpenRouterService();
