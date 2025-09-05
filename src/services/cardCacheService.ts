@@ -15,6 +15,7 @@ export interface CachedCard {
   difficulty: number;
   createdAt: Date;
   lastAccessed: Date;
+  visitedAt?: Date; // When this card was visited (moved to history)
 }
 
 export interface CacheStats {
@@ -22,6 +23,8 @@ export interface CacheStats {
   fullyLoadedCards: number;
   cacheHitRate: number;
   averageLoadTime: number;
+  nextTopicsCount: number;
+  historyCount: number;
 }
 
 class CardCacheService {
@@ -33,7 +36,9 @@ class CardCacheService {
     totalCards: 0,
     fullyLoadedCards: 0,
     cacheHitRate: 0,
-    averageLoadTime: 0
+    averageLoadTime: 0,
+    nextTopicsCount: 0,
+    historyCount: 0
   };
 
   constructor() {
@@ -56,6 +61,31 @@ class CardCacheService {
   getAllCachedCards(): CachedCard[] {
     return Array.from(this.cache.values())
       .sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
+  }
+
+  // Get Next Topics (unvisited cached cards)
+  getNextTopics(): CachedCard[] {
+    return Array.from(this.cache.values())
+      .filter(card => !card.visitedAt) // Only cards that haven't been visited
+      .sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
+  }
+
+  // Get History (visited cached cards in visit order)
+  getHistory(): CachedCard[] {
+    return Array.from(this.cache.values())
+      .filter(card => card.visitedAt) // Only cards that have been visited
+      .sort((a, b) => (b.visitedAt?.getTime() || 0) - (a.visitedAt?.getTime() || 0));
+  }
+
+  // Mark a card as visited (move from Next Topics to History)
+  markCardAsVisited(topic: string): void {
+    const cachedCard = this.cache.get(topic);
+    if (cachedCard) {
+      cachedCard.visitedAt = new Date();
+      cachedCard.lastAccessed = new Date();
+      console.log(`📚 Moved card to history: ${topic}`);
+      this.updateStats();
+    }
   }
 
   // Get cards that are ready to use (fully loaded)
@@ -320,8 +350,17 @@ class CardCacheService {
   }
 
   // Update loading time statistics
-  private updateStats(loadTime: number): void {
-    this.stats.averageLoadTime = (this.stats.averageLoadTime + loadTime) / 2;
+  private updateStats(loadTime?: number): void {
+    if (loadTime) {
+      this.stats.averageLoadTime = (this.stats.averageLoadTime + loadTime) / 2;
+    }
+    
+    // Update queue counts
+    const nextTopics = this.getNextTopics();
+    const history = this.getHistory();
+    
+    this.stats.nextTopicsCount = nextTopics.length;
+    this.stats.historyCount = history.length;
   }
 
   // Get cache statistics

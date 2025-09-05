@@ -525,6 +525,9 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       // Switch to the cached card regardless of loading state
       console.log(`🚀 Switching to cached card: ${cachedCard.topic} (${cachedCard.loadingProgress}% loaded)`);
       
+      // Mark card as visited (move from Next Topics to History)
+      cardCacheService.markCardAsVisited(cachedCard.topic);
+      
       // Switch to the cached card (even if still loading)
       if (cachedCard.card && Object.keys(cachedCard.card).length > 0) {
         setCurrentCard(cachedCard.card);
@@ -569,7 +572,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
   };
 
   const handleNavigateToCachedCard = async () => {
-    const allCachedCards = cardCacheService.getAllCachedCards();
+    // Prioritize Next Topics over History
+    const nextTopics = cardCacheService.getNextTopics();
+    const history = cardCacheService.getHistory();
+    const allCachedCards = [...nextTopics, ...history];
     
     if (allCachedCards.length === 0) {
       console.log('❌ No cached cards available for navigation');
@@ -578,13 +584,11 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       return;
     }
     
-    // Prioritize fully loaded cards, but allow partially loaded ones
-    const readyCards = cardCacheService.getReadyCards();
-    const topCachedCard = readyCards.length > 0 
-      ? readyCards[0] // Use fully loaded card if available
-      : allCachedCards[0]; // Otherwise use the most recent cached card (even if loading)
+    // Choose the top card (prioritize Next Topics, then History)
+    const topCachedCard = allCachedCards[0];
     
-    console.log('🚀 Navigating to cached card:', topCachedCard.topic, `(${topCachedCard.loadingProgress}% loaded)`);
+    console.log(`🚀 Navigating to ${nextTopics.includes(topCachedCard) ? 'Next Topic' : 'History'} card:`, 
+                topCachedCard.topic, `(${topCachedCard.loadingProgress}% loaded)`);
     
     // Switch to the cached card
     await handleSelectCachedCard(topCachedCard);
@@ -982,7 +986,8 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
       <NavigationPanel
         isOpen={showNavigationPanel}
         onClose={() => setShowNavigationPanel(false)}
-        cachedCards={cachedCards}
+        nextTopics={cardCacheService.getNextTopics()}
+        history={cardCacheService.getHistory()}
         currentTopic={selectedTopic}
         onSelectCachedCard={handleSelectCachedCard}
         sessionStats={{
