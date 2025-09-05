@@ -26,13 +26,14 @@ import {
 } from 'lucide-react';
 
 interface SwipeActions {
-  onUnderstand: () => void;    // Right swipe (fallback when no cached cards)
-  onQuickTest: () => void;     // Left swipe (was review, now quiz)
-  onHelp: () => void;          // Up swipe
-  onExplore: () => void;       // Down swipe
-  onNavigate: () => void;      // Center tap (was quick test, now navigation)
+  onUnderstand: () => void;    // Fallback action
+  onQuickTest: () => void;     // Fallback action
+  onHelp: () => void;          // Up swipe - opens help/assistant
+  onExplore: () => void;       // Fallback action
+  onNavigate: () => void;      // Down swipe - opens navigation panel
   onSelectTopic: (topic: string) => void; // From radial navigation
-  onNavigateToCachedCard: () => void; // Right swipe to cached card
+  onNavigateToNextTopic: () => void; // Right swipe - go to next topic from cache
+  onNavigateToHistory: () => void; // Left swipe - go to history card and move current to history
 }
 
 interface LearningCardProps {
@@ -165,24 +166,24 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
     if (Math.abs(offset.x) > Math.abs(offset.y)) {
       // Horizontal swipe
       if (offset.x > SWIPE_THRESHOLD) {
-        // Right swipe - check for any cached cards first (including loading ones)
-        const allCachedCards = cardCacheService.getAllCachedCards();
-        if (allCachedCards.length > 0) {
-          console.log('➡️ Right swipe: Navigating to cached card');
-          actions.onNavigateToCachedCard();
-        } else {
-          console.log('➡️ Right swipe: No cached cards, using understand action');
-          actions.onUnderstand();
-        }
+        // Right swipe - navigate to top card from Next Topics cache
+        console.log('➡️ Right swipe: Navigating to next topic from cache');
+        actions.onNavigateToNextTopic();
       } else if (offset.x < -SWIPE_THRESHOLD) {
-        actions.onQuickTest(); // Left swipe now opens quiz
+        // Left swipe - navigate to top card from History (and move current to history)
+        console.log('⬅️ Left swipe: Navigating to history card');
+        actions.onNavigateToHistory();
       }
     } else {
       // Vertical swipe
       if (offset.y < -SWIPE_THRESHOLD) {
+        // Up swipe - open help/assistant
+        console.log('⬆️ Up swipe: Opening help/assistant');
         actions.onHelp();
       } else if (offset.y > SWIPE_THRESHOLD) {
-        actions.onExplore();
+        // Down swipe - open navigation panel
+        console.log('⬇️ Down swipe: Opening navigation panel');
+        actions.onNavigate();
       }
     }
     
@@ -425,23 +426,22 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           </div>
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-chart-3 text-sm font-medium flex items-center gap-1">
             <ArrowDown size={16} />
-            <span>Explore</span>
+            <span>Navigate</span>
           </div>
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-destructive text-sm font-medium flex items-center gap-1">
-            <RotateCcw size={16} />
-            <span>Review</span>
-          </div>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary text-sm font-medium flex items-center gap-1">
-            {cardCacheService.getAllCachedCards().length > 0 ? (
-              <>
-                <ArrowUp size={16} style={{ transform: 'rotate(90deg)' }} />
-                <span>Next Card</span>
-              </>
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-600 text-sm font-medium flex items-center gap-1">
+            <ArrowUp size={16} style={{ transform: 'rotate(-90deg)' }} />
+            {cardCacheService.getHistory().length > 0 ? (
+              <span>History</span>
             ) : (
-              <>
-                <CheckCircle size={16} />
-                <span>Got it!</span>
-              </>
+              <span>No History</span>
+            )}
+          </div>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-600 text-sm font-medium flex items-center gap-1">
+            <ArrowUp size={16} style={{ transform: 'rotate(90deg)' }} />
+            {cardCacheService.getNextTopics().length > 0 ? (
+              <span>Next Topic</span>
+            ) : (
+              <span>No Topics</span>
             )}
           </div>
         </motion.div>
@@ -651,7 +651,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           {isActive && !isDragging && (
             <div className="text-center pt-2">
               <p className="text-xs text-muted-foreground">
-                Tap for quick test • Long press for concepts
+                Tap for navigation • Long press for concepts
               </p>
             </div>
           )}

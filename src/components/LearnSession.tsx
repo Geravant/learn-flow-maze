@@ -571,6 +571,57 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     }
   };
 
+  const handleNavigateToNextTopic = async () => {
+    // Right swipe - navigate to top card from Next Topics cache
+    const nextTopics = cardCacheService.getNextTopics();
+    
+    if (nextTopics.length === 0) {
+      console.log('❌ No next topics available');
+      toast({
+        title: "No Next Topics",
+        description: "No cached topics available to navigate to.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const topNextTopic = nextTopics[0];
+    console.log('➡️ Right swipe: Navigating to next topic:', topNextTopic.topic);
+    
+    // Switch to the next topic
+    await handleSelectCachedCard(topNextTopic);
+  };
+
+  const handleNavigateToHistory = async () => {
+    // Left swipe - navigate to top card from History and move current to history
+    const activeCard = progressiveCard || currentCard;
+    
+    // First, mark current card as visited (move to history)
+    if (activeCard) {
+      cardCacheService.markCardAsVisited(activeCard.topic);
+      console.log('📚 Moved current card to history:', activeCard.topic);
+    }
+    
+    // Then navigate to top history card if available
+    const history = cardCacheService.getHistory();
+    
+    if (history.length === 0) {
+      console.log('❌ No history available');
+      toast({
+        title: "No History",
+        description: "No previously visited topics available.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const topHistoryCard = history[0];
+    console.log('⬅️ Left swipe: Navigating to history card:', topHistoryCard.topic);
+    
+    // Switch to the history card
+    await handleSelectCachedCard(topHistoryCard);
+  };
+
   const handleNavigateToCachedCard = async () => {
     // Prioritize Next Topics over History
     const nextTopics = cardCacheService.getNextTopics();
@@ -939,12 +990,13 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
                 cachedImage={currentCachedImage}
                 actions={{
                   onUnderstand: handleUnderstand,
-                  onQuickTest: handleQuickTest,    // Left swipe now opens quiz
-                  onHelp: handleHelp,
+                  onQuickTest: handleQuickTest,    // Fallback action
+                  onHelp: handleHelp,              // Up swipe - opens help/assistant
                   onExplore: handleExplore,
-                  onNavigate: handleNavigate,       // Center tap now opens navigation
+                  onNavigate: handleNavigate,       // Down swipe - opens navigation panel
                   onSelectTopic: handleSelectTopic, // From radial navigation
-                  onNavigateToCachedCard: handleNavigateToCachedCard // Right swipe to cached card
+                  onNavigateToNextTopic: handleNavigateToNextTopic, // Right swipe - next topic from cache
+                  onNavigateToHistory: handleNavigateToHistory // Left swipe - history card and move current to history
                 }}
                 isActive={sessionActive}
               />
