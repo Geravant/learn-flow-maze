@@ -561,6 +561,30 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
     }
   };
 
+  const handleNavigateToCachedCard = async () => {
+    const readyCards = cardCacheService.getReadyCards();
+    
+    if (readyCards.length === 0) {
+      console.log('❌ No cached cards available for navigation');
+      // Fallback to understand action
+      handleUnderstand();
+      return;
+    }
+    
+    // Get the top (most recently accessed) ready card
+    const topCachedCard = readyCards[0];
+    
+    console.log('🚀 Navigating to top cached card:', topCachedCard.topic);
+    
+    // Switch to the top cached card
+    await handleSelectCachedCard(topCachedCard);
+    
+    toast({
+      title: "Switched to Cached Card!",
+      description: `Now exploring: ${topCachedCard.topic}`,
+    });
+  };
+
 
   const handleProgressiveQuizUpdate = (question: ProgressiveQuizQuestion) => {
     setProgressiveQuiz(prev => {
@@ -910,7 +934,8 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
                   onHelp: handleHelp,
                   onExplore: handleExplore,
                   onNavigate: handleNavigate,       // Center tap now opens navigation
-                  onSelectTopic: handleSelectTopic  // From radial navigation
+                  onSelectTopic: handleSelectTopic, // From radial navigation
+                  onNavigateToCachedCard: handleNavigateToCachedCard // Right swipe to cached card
                 }}
                 isActive={sessionActive}
               />

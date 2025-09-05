@@ -5,6 +5,8 @@ import { LearningCard as ILearningCard } from '@/services/openRouterService';
 import { ProgressiveCard, CardSection } from '@/services/progressiveCardService';
 import { imageGenerationService } from '@/services/imageGenerationService';
 import { cardLoadingService, CardContentInfo } from '@/services/cardLoadingService';
+import { textTokenService, ContextualTokens } from '@/services/textTokenService';
+import { cardCacheService } from '@/services/cardCacheService';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,12 +26,13 @@ import {
 } from 'lucide-react';
 
 interface SwipeActions {
-  onUnderstand: () => void;    // Right swipe
+  onUnderstand: () => void;    // Right swipe (fallback when no cached cards)
   onQuickTest: () => void;     // Left swipe (was review, now quiz)
   onHelp: () => void;          // Up swipe
   onExplore: () => void;       // Down swipe
   onNavigate: () => void;      // Center tap (was quick test, now navigation)
   onSelectTopic: (topic: string) => void; // From radial navigation
+  onNavigateToCachedCard: () => void; // Right swipe to cached card
 }
 
 interface LearningCardProps {
@@ -61,6 +64,8 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
   const [showRadialNav, setShowRadialNav] = useState(false);
   const [contextualConcepts, setContextualConcepts] = useState<string[]>([]);
   const [tappedArea, setTappedArea] = useState<string>('general');
+  const [primaryTokens, setPrimaryTokens] = useState<string[]>([]);
+  const [tapLocation, setTapLocation] = useState<{ x: number; y: number } | undefined>();
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressThreshold = 500; // 500ms for long press
   
@@ -160,7 +165,15 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
     if (Math.abs(offset.x) > Math.abs(offset.y)) {
       // Horizontal swipe
       if (offset.x > SWIPE_THRESHOLD) {
-        actions.onUnderstand();
+        // Right swipe - check for cached cards first
+        const readyCards = cardCacheService.getReadyCards();
+        if (readyCards.length > 0) {
+          console.log('➡️ Right swipe: Navigating to top cached card');
+          actions.onNavigateToCachedCard();
+        } else {
+          console.log('➡️ Right swipe: No cached cards, using understand action');
+          actions.onUnderstand();
+        }
       } else if (offset.x < -SWIPE_THRESHOLD) {
         actions.onQuickTest(); // Left swipe now opens quiz
       }
@@ -280,11 +293,43 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
   }, [activeCard, cachedImage, autoGenerateImage, getCurrentContentInfo, getCardId, generationAttempted]);
 
   const handleLongPressStart = (event?: React.PointerEvent, area: string = 'general') => {
-    if (!isActive) return;
+    if (!isActive || !event) return;
+    
     longPressTimer.current = setTimeout(() => {
-      setTappedArea(area);
-      setContextualConcepts(generateContextualConcepts(area));
-      setShowRadialNav(true);
+      console.log('🎯 Long press detected, analyzing tap location...');
+      
+      try {
+        // Extract tap location and find nearby text tokens
+        const tapLocation = textTokenService.extractTapLocation(event);
+        const nearbyTokens = textTokenService.findTokensNearTap(tapLocation, 100);
+        
+        console.log('📍 Found nearby tokens:', nearbyTokens.map(t => t.text));
+        
+        // Generate contextual concepts based on tokens
+        const contextualData: ContextualTokens = textTokenService.generateContextualConcepts(
+          nearbyTokens, 
+          activeCard?.topic || 'Unknown Topic'
+        );
+        
+        console.log('🧠 Generated contextual concepts:', contextualData);
+        
+        // Update state with token-based concepts
+        setTappedArea(contextualData.area);
+        setContextualConcepts(contextualData.contextualConcepts);
+        setPrimaryTokens(contextualData.primaryTokens);
+        setTapLocation({ x: tapLocation.x, y: tapLocation.y });
+        setShowRadialNav(true);
+      } catch (error) {
+        console.error('❌ Error in contextual token analysis:', error);
+        
+        // Fallback to traditional context-based generation
+        console.log('🔄 Falling back to traditional concept generation for area:', area);
+        setTappedArea(area);
+        setContextualConcepts(generateContextualConcepts(area));
+        setPrimaryTokens([]);
+        setTapLocation(undefined);
+        setShowRadialNav(true);
+      }
     }, longPressThreshold);
   };
 
@@ -300,6 +345,13 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
   };
 
   const handleTopicSelect = (topic: string) => {
+    console.log('🎯 Selected concept from RadialNavigationPanel:', topic);
+    
+    // Add selected concept to cache immediately for instant access
+    console.log('💾 Adding selected concept to cache:', topic);
+    cardCacheService.warmCache(topic, activeCard?.difficulty || 3);
+    
+    // Navigate to the topic
     actions.onSelectTopic(topic);
     setShowRadialNav(false);
   };
@@ -380,8 +432,17 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
             <span>Review</span>
           </div>
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary text-sm font-medium flex items-center gap-1">
-            <CheckCircle size={16} />
-            <span>Got it!</span>
+            {cardCacheService.getReadyCards().length > 0 ? (
+              <>
+                <ArrowUp size={16} style={{ transform: 'rotate(90deg)' }} />
+                <span>Next Card</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle size={16} />
+                <span>Got it!</span>
+              </>
+            )}
           </div>
         </motion.div>
       )}
@@ -407,7 +468,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
         whileDrag={{ scale: 1.02 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        <Card className="p-6 space-y-4 border-2 transition-colors duration-200 min-h-[500px] bg-card/95 backdrop-blur">
+        <Card className="p-6 space-y-4 border-2 transition-colors duration-200 min-h-[500px] bg-card/95 backdrop-blur learning-card">
           {/* Header */}
           <div className="space-y-3">
             <div className="flex items-start justify-between">
@@ -436,6 +497,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           {/* Definition */}
           <div 
             className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+            data-section="definition"
             onPointerDown={(e) => handleLongPressStart(e, 'definition')}
             onPointerUp={handleLongPressEnd}
             onPointerLeave={handleLongPressEnd}
@@ -457,6 +519,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           {(getSectionContent('visualAid') || getSectionLoading('visualAid')) && (
             <div 
               className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+              data-section="visualAid"
               onPointerDown={(e) => handleLongPressStart(e, 'visualAid')}
               onPointerUp={handleLongPressEnd}
               onPointerLeave={handleLongPressEnd}
@@ -561,6 +624,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           {(getSectionContent('examples', []).length > 0 || getSectionLoading('examples')) && (
             <div 
               className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
+              data-section="examples"
               onPointerDown={(e) => handleLongPressStart(e, 'examples')}
               onPointerUp={handleLongPressEnd}
               onPointerLeave={handleLongPressEnd}
@@ -602,6 +666,8 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
         currentTopic={activeCard.topic}
         surroundingConcepts={contextualConcepts}
         contextArea={tappedArea}
+        primaryTokens={primaryTokens}
+        tapLocation={tapLocation}
       />
     </div>
   );

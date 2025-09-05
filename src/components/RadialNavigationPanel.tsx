@@ -16,6 +16,8 @@ interface RadialNavigationPanelProps {
   currentTopic: string;
   surroundingConcepts: string[];
   contextArea?: string;
+  primaryTokens?: string[]; // The text tokens that were tapped
+  tapLocation?: { x: number; y: number }; // Where the user tapped
 }
 
 export function RadialNavigationPanel({ 
@@ -24,7 +26,9 @@ export function RadialNavigationPanel({
   onSelectTopic, 
   currentTopic,
   surroundingConcepts,
-  contextArea = 'general'
+  contextArea = 'general',
+  primaryTokens = [],
+  tapLocation
 }: RadialNavigationPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   
@@ -126,7 +130,8 @@ export function RadialNavigationPanel({
                 className="fill-muted-foreground text-xs"
                 style={{ fontSize: '9px' }}
               >
-                {contextArea === 'definition' ? 'Basics' : 
+                {primaryTokens.length > 0 ? 'From Text' :
+                 contextArea === 'definition' ? 'Basics' : 
                  contextArea === 'keyPoints' ? 'Deep Dive' :
                  contextArea === 'examples' ? 'Applications' :
                  contextArea === 'visualAid' ? 'Visual' : 'Related'}
@@ -138,7 +143,10 @@ export function RadialNavigationPanel({
                 className="fill-primary text-xs font-bold"
                 style={{ fontSize: '10px' }}
               >
-                {currentTopic.length > 12 ? `${currentTopic.slice(0, 12)}...` : currentTopic}
+                {primaryTokens.length > 0 
+                  ? (primaryTokens[0].length > 12 ? `${primaryTokens[0].slice(0, 12)}...` : primaryTokens[0])
+                  : (currentTopic.length > 12 ? `${currentTopic.slice(0, 12)}...` : currentTopic)
+                }
               </text>
 
               {/* Connection lines */}
@@ -245,10 +253,12 @@ export function RadialNavigationPanel({
               transition={{ delay: 0.5 }}
             >
               <p className="text-xs text-muted-foreground">
-                {contextArea === 'definition' ? 'Explore fundamentals' :
-                 contextArea === 'keyPoints' ? 'Deep dive topics' :
-                 contextArea === 'examples' ? 'Real applications' :
-                 contextArea === 'visualAid' ? 'Visual concepts' : 'Related topics'}
+                {primaryTokens.length > 0 
+                  ? `Concepts related to "${primaryTokens.join(', ')}"`
+                  : contextArea === 'definition' ? 'Explore fundamentals' :
+                    contextArea === 'keyPoints' ? 'Deep dive topics' :
+                    contextArea === 'examples' ? 'Real applications' :
+                    contextArea === 'visualAid' ? 'Visual concepts' : 'Related topics'}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Tap outside or press ESC to close
