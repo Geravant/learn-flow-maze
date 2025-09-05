@@ -68,7 +68,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
   const [primaryTokens, setPrimaryTokens] = useState<string[]>([]);
   const [tapLocation, setTapLocation] = useState<{ x: number; y: number } | undefined>();
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const longPressThreshold = 500; // 500ms for long press
+  const longPressThreshold = 2000; // 2000ms (2 seconds) for long press
   
   // Auto-generation state
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
