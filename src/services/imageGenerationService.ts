@@ -108,8 +108,10 @@ class ImageGenerationService {
       const { prompt } = request;
 
       const enhancedPrompt = `Create a clear, educational visualization for: ${prompt}. 
-Style: Clean, minimalist, suitable for learning materials. 
-Requirements: High contrast, easy to understand, professional appearance.`;
+Style: Clean, minimalist, suitable for learning materials, with pixellated fleur of sega games. 
+Requirements: High contrast, easy to understand, professional appearance,
+large font, no more than seven main elements.
+`;
 
       const response = await this.makeRequest('/chat/completions', {
         model: this.model,
