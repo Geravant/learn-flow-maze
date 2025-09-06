@@ -40,9 +40,9 @@ export function RadialNavigationPanel({
     angle: (360 / surroundingConcepts.length) * index
   }));
 
-  const radius = 120; // Distance from center
-  const centerX = 150; // SVG center X
-  const centerY = 150; // SVG center Y
+  const radius = 140; // Distance from center (increased for bigger items)
+  const centerX = 180; // SVG center X (updated for larger SVG)
+  const centerY = 180; // SVG center Y (updated for larger SVG)
 
   // Calculate position for each option
   const getOptionPosition = (angle: number) => {
@@ -108,7 +108,7 @@ export function RadialNavigationPanel({
             exit={{ scale: 0.8, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
           >
-            <svg width="300" height="300" className="overflow-visible">
+            <svg width="360" height="360" className="overflow-visible">
               {/* Center circle */}
               <motion.circle
                 cx={centerX}
@@ -180,7 +180,7 @@ export function RadialNavigationPanel({
                     <motion.circle
                       cx={pos.x}
                       cy={pos.y}
-                      r={isSelected ? "32" : "28"}
+                      r={isSelected ? "45" : "40"}
                       fill="hsl(var(--background))"
                       stroke={getDifficultyColor(option.difficulty)}
                       strokeWidth="2"
@@ -198,23 +198,20 @@ export function RadialNavigationPanel({
                     {/* Option text */}
                     <text
                       x={pos.x}
-                      y={pos.y - 2}
+                      y={pos.y}
                       textAnchor="middle"
-                      className="fill-foreground text-xs font-medium pointer-events-none"
-                      style={{ fontSize: '9px' }}
+                      className="fill-foreground text-sm font-medium pointer-events-none"
+                      style={{ fontSize: '11px' }}
                     >
-                      {option.topic.length > 8 ? `${option.topic.slice(0, 8)}...` : option.topic}
-                    </text>
-                    
-                    {/* Difficulty indicator */}
-                    <text
-                      x={pos.x}
-                      y={pos.y + 10}
-                      textAnchor="middle"
-                      className="fill-muted-foreground text-xs pointer-events-none"
-                      style={{ fontSize: '8px' }}
-                    >
-                      L{option.difficulty}
+                      {/* Multi-line text support for longer topics */}
+                      {option.topic.length > 15 ? (
+                        <>
+                          <tspan x={pos.x} dy="-6">{option.topic.slice(0, 15)}</tspan>
+                          <tspan x={pos.x} dy="12">{option.topic.slice(15)}</tspan>
+                        </>
+                      ) : (
+                        option.topic
+                      )}
                     </text>
 
                     {/* Selection arrow */}
