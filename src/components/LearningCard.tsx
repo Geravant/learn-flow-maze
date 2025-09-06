@@ -67,8 +67,8 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
   const [tappedArea, setTappedArea] = useState<string>('general');
   const [primaryTokens, setPrimaryTokens] = useState<string[]>([]);
   const [tapLocation, setTapLocation] = useState<{ x: number; y: number } | undefined>();
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const longPressThreshold = 2000; // 2000ms (2 seconds) for long press
+  const lastTapTime = useRef<number>(0);
+  const doubleTapThreshold = 300; // 300ms for double tap detection
   
   // Auto-generation state
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -192,9 +192,25 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
     y.set(0);
   };
 
-  const handleTap = () => {
-    if (!isDragging) {
-      actions.onNavigate(); // Center tap now opens navigation
+  const handleTap = (event?: any) => {
+    if (isDragging) return;
+    
+    const currentTime = Date.now();
+    const timeSinceLastTap = currentTime - lastTapTime.current;
+    
+    if (timeSinceLastTap < doubleTapThreshold) {
+      // Double tap detected - open radial navigation
+      console.log('🎯 Double tap detected on main card');
+      handleDoubleTap(event, 'general');
+    } else {
+      // Single tap - wait to see if another tap comes
+      lastTapTime.current = currentTime;
+      setTimeout(() => {
+        // Check if we're still waiting for a double tap
+        if (Date.now() - lastTapTime.current >= doubleTapThreshold) {
+          actions.onNavigate(); // Single tap opens navigation panel
+        }
+      }, doubleTapThreshold);
     }
   };
 
@@ -293,11 +309,15 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
     }
   }, [activeCard, cachedImage, autoGenerateImage, getCurrentContentInfo, getCardId, generationAttempted]);
 
-  const handleLongPressStart = (event?: React.PointerEvent, area: string = 'general') => {
+  const handleDoubleTap = (event?: React.PointerEvent, area: string = 'general') => {
     if (!isActive || !event) return;
     
-    longPressTimer.current = setTimeout(() => {
-      console.log('🎯 Long press detected, analyzing tap location...');
+    const currentTime = Date.now();
+    const timeSinceLastTap = currentTime - lastTapTime.current;
+    
+    if (timeSinceLastTap < doubleTapThreshold) {
+      // Double tap detected
+      console.log('🎯 Double tap detected, analyzing tap location...');
       
       try {
         // Extract tap location and find nearby text tokens
@@ -331,13 +351,12 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
         setTapLocation(undefined);
         setShowRadialNav(true);
       }
-    }, longPressThreshold);
-  };
-
-  const handleLongPressEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
+      
+      // Reset tap time to prevent triple tap detection
+      lastTapTime.current = 0;
+    } else {
+      // Record this tap time
+      lastTapTime.current = currentTime;
     }
   };
 
@@ -454,9 +473,6 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onTap={handleTap}
-        onPointerDown={handleLongPressStart}
-        onPointerUp={handleLongPressEnd}
-        onPointerLeave={handleLongPressEnd}
         style={{
           x,
           y,
@@ -498,9 +514,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           <div 
             className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
             data-section="definition"
-            onPointerDown={(e) => handleLongPressStart(e, 'definition')}
-            onPointerUp={handleLongPressEnd}
-            onPointerLeave={handleLongPressEnd}
+            onClick={(e) => handleDoubleTap(e.nativeEvent as any, 'definition')}
           >
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <BookOpen size={16} />
@@ -520,9 +534,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
             <div 
               className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
               data-section="visualAid"
-              onPointerDown={(e) => handleLongPressStart(e, 'visualAid')}
-              onPointerUp={handleLongPressEnd}
-              onPointerLeave={handleLongPressEnd}
+              onClick={(e) => handleDoubleTap(e.nativeEvent as any, 'visualAid')}
             >
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Target size={16} />
@@ -625,9 +637,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
             <div 
               className="space-y-2 p-2 rounded-md hover:bg-muted/20 transition-colors cursor-pointer"
               data-section="examples"
-              onPointerDown={(e) => handleLongPressStart(e, 'examples')}
-              onPointerUp={handleLongPressEnd}
-              onPointerLeave={handleLongPressEnd}
+              onClick={(e) => handleDoubleTap(e.nativeEvent as any, 'examples')}
             >
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Zap size={16} />
@@ -651,7 +661,7 @@ export function LearningCard({ card, progressiveCard, actions, isActive = true, 
           {isActive && !isDragging && (
             <div className="text-center pt-2">
               <p className="text-xs text-muted-foreground">
-                Tap for navigation • Long press for concepts
+                Tap for navigation • Double tap for concepts
               </p>
             </div>
           )}
