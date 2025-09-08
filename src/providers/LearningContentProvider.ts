@@ -288,11 +288,74 @@ export class LearningContentProvider extends BaseContentProvider implements Prog
   }
 
   private async generateQuizSection(topic: string): Promise<any> {
-    // This would integrate with the existing quiz generation
+    try {
+      const response = await openRouterService.generateResponse(
+        `Create a multiple choice quiz question about ${topic}. Format as JSON with question, options array, and correct answer index.`,
+        { maxTokens: 400 }
+      );
+      
+      // Parse the quiz data
+      const quizData = JSON.parse(response.trim());
+      return {
+        type: 'quiz',
+        topic,
+        question: quizData.question,
+        options: quizData.options,
+        correctAnswer: quizData.correctAnswer,
+        interactive: true
+      };
+    } catch (error) {
+      return {
+        type: 'quiz',
+        topic,
+        placeholder: `Quiz about ${topic} will be generated here`,
+        error: 'Quiz generation failed'
+      };
+    }
+  }
+
+  // Enhanced content generation with better integration to existing services
+  async enhanceWithAssets(content: CardContent): Promise<CardContent> {
+    const enhancedSections = await Promise.all(
+      content.sections.map(async (section, index) => {
+        // Generate images for visual sections
+        if (section.metadata?.type === 'visualAid') {
+          try {
+            const imageUrl = await imageGenerationService.generateImage(
+              `Educational illustration for: ${section.content}`,
+              { style: 'educational', quality: 'medium' }
+            );
+            
+            return {
+              ...section,
+              type: 'image' as const,
+              content: {
+                url: imageUrl,
+                alt: `Visual aid for ${content.title}`,
+                caption: section.content
+              },
+              metadata: {
+                ...section.metadata,
+                hasGeneratedAsset: true,
+                originalContent: section.content
+              }
+            };
+          } catch (error) {
+            console.warn('Failed to generate image for visual aid:', error);
+          }
+        }
+        return section;
+      })
+    );
+
     return {
-      type: 'quiz',
-      topic,
-      placeholder: `Quiz about ${topic} will be generated here`
+      ...content,
+      sections: enhancedSections,
+      metadata: {
+        ...content.metadata,
+        assetsGenerated: true,
+        enhancementDate: new Date()
+      }
     };
   }
 }
