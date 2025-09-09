@@ -5,6 +5,7 @@ import { QuizModal } from './QuizModal';
 import { AITutorModal } from './AITutorModal';
 import { NavigationPanel } from './NavigationPanel';
 import { openRouterService, LearningCard as ILearningCard, QuizQuestion } from '@/services/openRouterService';
+import { useNavigate } from 'react-router-dom';
 import { wikiCardService } from '@/services/wikiCardService';
 import { apiKeyManager } from '@/services/apiKeyManager';
 import { topicSuggestionService } from '@/services/topicSuggestionService';
@@ -24,7 +25,8 @@ import {
   RefreshCcw,
   Settings,
   Play,
-  Pause
+  Pause,
+  Network
 } from 'lucide-react';
 
 interface SessionStats {
@@ -41,6 +43,7 @@ interface LearnSessionProps {
 }
 
 export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
+  const navigate = useNavigate();
   const [currentCard, setCurrentCard] = useState<ILearningCard | null>(null);
   const [progressiveCard, setProgressiveCard] = useState<ProgressiveCard | null>(null);
   // Detect mobile and disable progressive loading by default on mobile
@@ -992,9 +995,20 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
             </div>
           </div>
           
-          <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
-            <Settings size={16} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => navigate('/mcp')}
+              className="flex items-center gap-1"
+            >
+              <Network size={16} />
+              <span className="hidden sm:inline">MCP</span>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
+              <Settings size={16} />
+            </Button>
+          </div>
         </div>
       </div>
 
