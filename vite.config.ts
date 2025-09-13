@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
   base: process.env.NODE_ENV === 'production' ? '/learn-flow-maze/' : '/',
   server: {
     host: "::",
-    port: 8080,
+    port: 8081,
   },
   plugins: [
     react(),

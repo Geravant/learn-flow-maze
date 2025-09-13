@@ -31,7 +31,7 @@ import { LearningAnalyticsService } from '../services/LearningAnalytics';
 import { CardContent, CardSection, learningTheme } from '../abstractions/interfaces';
 
 // Learning Progress Dashboard
-export interface LearningDashboardProps {
+export interface LearningDashboardPropsSomeBullshit {
   userId: string;
   sessionManager: LearningSessionManager;
   analyticsService: LearningAnalyticsService;

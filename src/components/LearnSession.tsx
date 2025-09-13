@@ -12,6 +12,7 @@ import { progressiveCardService, ProgressiveCard, CardSection } from '@/services
 import { progressiveQuizService, ProgressiveQuiz, QuizQuestion as ProgressiveQuizQuestion } from '@/services/progressiveQuizService';
 import { cardCacheService, CachedCard } from '@/services/cardCacheService';
 import { jokeGenerationService } from '@/services/jokeGenerationService';
+import { ComputerUsePanel } from '@/components/ComputerUsePanel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -24,7 +25,9 @@ import {
   RefreshCcw,
   Settings,
   Play,
-  Pause
+  Pause,
+  Monitor,
+  ArrowLeft
 } from 'lucide-react';
 
 interface SessionStats {
@@ -40,7 +43,10 @@ interface LearnSessionProps {
   onComplete?: (stats: SessionStats) => void;
 }
 
+type AppMode = 'learning' | 'computer-use';
+
 export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
+  const [appMode, setAppMode] = useState<AppMode>('learning');
   const [currentCard, setCurrentCard] = useState<ILearningCard | null>(null);
   const [progressiveCard, setProgressiveCard] = useState<ProgressiveCard | null>(null);
   // Detect mobile and disable progressive loading by default on mobile
@@ -960,6 +966,35 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Computer Use Mode Banner - Only show when not in computer use mode */}
+      {appMode === 'learning' && (
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-b">
+          <div className="max-w-4xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Monitor className="w-5 h-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Try Computer Use Mode
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    AI-powered desktop automation with dual-pane chat and screen viewing
+                  </p>
+                </div>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={() => window.location.href = '/computer-use'}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-1"
+              >
+                <Monitor size={14} />
+                Launch Computer Use
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Stats */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border p-4">
         <div className="flex items-center justify-between">
@@ -992,14 +1027,40 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
             </div>
           </div>
           
-          <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
-            <Settings size={16} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="sm" 
+              variant={appMode === 'computer-use' ? 'default' : 'outline'}
+              onClick={() => setAppMode(appMode === 'learning' ? 'computer-use' : 'learning')}
+              className="gap-1"
+            >
+              {appMode === 'computer-use' ? (
+                <>
+                  <ArrowLeft size={16} />
+                  <BookOpen size={16} />
+                  Learn Mode
+                </>
+              ) : (
+                <>
+                  <Monitor size={16} />
+                  Computer Use
+                </>
+              )}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
+              <Settings size={16} />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Main Learning Area */}
-      <div className="p-4 pb-20">
+      {/* Main Content Area */}
+      {appMode === 'computer-use' ? (
+        <div className="flex-1">
+          <ComputerUsePanel onClose={() => setAppMode('learning')} />
+        </div>
+      ) : (
+        <div className="p-4 pb-20">
         {loading && !currentCard ? (
           <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
             <RefreshCcw className="w-8 h-8 animate-spin text-primary" />
@@ -1046,10 +1107,11 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
           </div>
         )}
 
-      </div>
+        </div>
+      )}
 
-      {/* Quiz Modal */}
-      {showQuiz && ((quizQuestions.length > 0) || (progressiveQuiz && progressiveQuiz.questions.length > 0)) && (
+      {/* Quiz Modal - Learning Mode Only */}
+      {appMode === 'learning' && showQuiz && ((quizQuestions.length > 0) || (progressiveQuiz && progressiveQuiz.questions.length > 0)) && (
         <QuizModal
           questions={progressiveQuiz ? progressiveQuiz.questions : quizQuestions}
           topic={currentCard?.topic || progressiveQuiz?.topic || ''}
@@ -1058,16 +1120,17 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
         />
       )}
 
-      {/* AI Tutor Modal */}
-      {showAITutor && currentCard && (
+      {/* AI Tutor Modal - Learning Mode Only */}
+      {appMode === 'learning' && showAITutor && currentCard && (
         <AITutorModal
           card={currentCard}
           onClose={() => setShowAITutor(false)}
         />
       )}
 
-      {/* Navigation Panel */}
-      <NavigationPanel
+      {/* Navigation Panel - Learning Mode Only */}
+      {appMode === 'learning' && (
+        <NavigationPanel
         isOpen={showNavigationPanel}
         onClose={() => setShowNavigationPanel(false)}
         nextTopics={cardCacheService.getNextTopics()}
@@ -1079,7 +1142,10 @@ export function LearnSession({ initialTopic, onComplete }: LearnSessionProps) {
           sessionTime: formatSessionTime(sessionStats.sessionTime),
           masteryLevel: Math.round((sessionStats.accuracyRate || 0) * 100)
         }}
-      />
+        />
+      )}
     </div>
   );
 }
+
+export default LearnSession;

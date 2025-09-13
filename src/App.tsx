@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
+import ComputerUse from "./pages/ComputerUse";
+import WebRTCTest from "./pages/WebRTCTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
       <Router {...routerProps}>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/computer-use" element={<ComputerUse />} />
+          <Route path="/webrtc-test" element={<WebRTCTest />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
